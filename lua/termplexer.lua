@@ -398,7 +398,7 @@ local function open_term()
     vim.t.naughie = ns
 
     if ns.term_chan_id then
-        open_cmdline_and_insert()
+        vim.defer_fn(open_cmdline_and_insert, 100)
         return
     end
 
@@ -409,7 +409,7 @@ local function open_term()
 
     vim.t.naughie = ns
 
-    open_cmdline_and_insert()
+    vim.defer_fn(open_cmdline_and_insert, 100)
 end
 
 local function kill_term(ns)
