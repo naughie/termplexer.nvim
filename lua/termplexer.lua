@@ -149,7 +149,7 @@ local function open_file_under_cursor()
     end
 end
 
-local function open_file_of_selection()
+function M.open_file_of_selection()
     local start_pos = vim.fn.getpos("'<")
     local end_pos = vim.fn.getpos("'>")
 
@@ -303,9 +303,9 @@ local function setup_obuf(buffer)
     keymap.set('n', 'A', open_cmdline_and_append, opts)
     keymap.set('n', 'o', open_file_under_cursor, opts)
     keymap.set('n', 'O', open_file_under_cursor, opts)
-    keymap.set('v', 'o', open_file_of_selection, opts)
-    keymap.set('v', 'O', open_file_of_selection, opts)
-    keymap.set('v', '<CR>', open_file_of_selection, opts)
+    keymap.set('v', 'o', ':<C-u>lua require("termplexer").open_file_of_selection()<CR>', opts)
+    keymap.set('v', 'O', ':<C-u>lua require("termplexer").open_file_of_selection()<CR>', opts)
+    keymap.set('v', '<CR>', ':<C-u>lua require("termplexer").open_file_of_selection()<CR>', opts)
     keymap.set('n', '<C-j>', open_cmdline_and_move, opts)
 
     local mygroup = api.nvim_create_augroup('NaughieForbidIns', { clear = true })
