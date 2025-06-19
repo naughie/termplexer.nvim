@@ -209,7 +209,7 @@ local function send_cmd()
     api.nvim_buf_set_lines(ns.i.term_buf_id, 0, -1, false, {})
 end
 
-local function move_to_iwin()
+local function move_to_owin()
     local ns = tabv()
     vim.cmd.stopinsert()
     api.nvim_set_current_win(ns.o.term_win_id)
@@ -221,8 +221,8 @@ local function setup_ibuf(buffer)
     local opts = { buffer = buffer, silent = true }
     keymap.set('i', '<CR>', send_cmd, opts)
     keymap.set('n', 'q', ':q<CR>', opts)
-    keymap.set('n', '<C-k>', move_to_iwin, opts)
-    keymap.set('i', '<C-k>', move_to_iwin, opts)
+    keymap.set('n', '<C-k>', move_to_owin, opts)
+    keymap.set('i', '<C-k>', move_to_owin, opts)
     keymap.set('n', '<C-o>', open_file_of_ibuf, opts)
 end
 
@@ -397,7 +397,10 @@ local function open_term()
 
     vim.t.naughie = ns
 
-    if ns.term_chan_id then return end
+    if ns.term_chan_id then
+        open_cmdline_and_insert()
+        return
+    end
 
     api.nvim_buf_set_option(buf, 'modified', false)
 
@@ -405,6 +408,8 @@ local function open_term()
     ns.term_chan_id = chan_id
 
     vim.t.naughie = ns
+
+    open_cmdline_and_insert()
 end
 
 local function kill_term(ns)
