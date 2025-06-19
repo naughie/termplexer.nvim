@@ -437,6 +437,7 @@ local function set_autocmd_onstartup()
                 ns.term_cwd = dir
                 vim.t.naughie = ns
                 set_cwd_tmp(dir)
+                vim.uv.chdir(dir)
             end
         end,
     })
@@ -458,6 +459,14 @@ local function set_autocmd_onstartup()
         callback = function()
             if vim.fn.argc() == 0 then open_term() end
         end,
+    })
+
+    api.nvim_create_autocmd('TabEnter', {
+        group = mygroup,
+        callback = function()
+            local ns = tabv()
+            if ns.term_cwd then vim.uv.chdir(ns.term_cwd) end
+        end
     })
 end
 
