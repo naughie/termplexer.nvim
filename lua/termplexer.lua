@@ -79,23 +79,11 @@ local function get_cwd()
     end
 end
 
-local function get_file_lines(path)
-    local lines = io.lines(path)
-    local ret = {}
-
-    for line in lines do
-        table.insert(ret, line)
-    end
-
-    return ret
-end
-
-local function load_to_buf(buf, win, lines, fname)
-    api.nvim_buf_set_name(buf, fname)
-    api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-    api.nvim_buf_set_option(buf, 'modified', false)
+local function load_to_buf(buf, win, fname)
+    api.nvim_buf_call(buf, function()
+        vim.cmd('edit! ' .. vim.fn.fnameescape(fname))
+    end)
     api.nvim_set_current_win(win)
-    api.nvim_exec_autocmds('BufRead', { buffer = buf })
 end
 
 local function open_file(file)
@@ -113,8 +101,7 @@ local function open_file(file)
         local buf_file = api.nvim_buf_get_name(buf)
 
         if buf_file == '' then
-            local lines = get_file_lines(file)
-            load_to_buf(buf, win, lines, file)
+            load_to_buf(buf, win, file)
             return
         elseif not first_nonterm_win and buf_file ~= term_buf_name.i and buf_file ~= term_buf_name.o then
             first_nonterm_win = win
@@ -123,8 +110,7 @@ local function open_file(file)
 
     if first_nonterm_win then
         local buf = api.nvim_win_get_buf(first_nonterm_win)
-        local lines = get_file_lines(file)
-        load_to_buf(buf, first_nonterm_win, lines, file)
+        load_to_buf(buf, first_nonterm_win, file)
     end
 end
 
