@@ -149,6 +149,32 @@ local function open_file_under_cursor()
     end
 end
 
+local function open_file_of_selection()
+    local start_pos = vim.fn.getpos("'<")
+    local end_pos = vim.fn.getpos("'>")
+
+    -- Assume start_pos[2] == end_pos[2]
+    local line = vim.api.nvim_buf_get_lines(0, start_pos[2] - 1, start_pos[2], false)
+    local selection = string.sub(line[1], start_pos[3], end_pos[3])
+
+    local full_fname = expand_regular_filepath(selection)
+
+    if full_fname then
+        local ns = tabv()
+
+        if ns.o.term_win_id then
+            ns = tabv()
+            local win = ns.o.term_win_id
+            ns.o.term_win_id = nil
+            vim.t.naughie = ns
+
+            api.nvim_win_close(win, true)
+        end
+
+        open_file(full_fname)
+    end
+end
+
 local function open_file_of_ibuf()
     local ns = tabv()
     if not ns.i.term_buf_id then return end
@@ -277,6 +303,9 @@ local function setup_obuf(buffer)
     keymap.set('n', 'A', open_cmdline_and_append, opts)
     keymap.set('n', 'o', open_file_under_cursor, opts)
     keymap.set('n', 'O', open_file_under_cursor, opts)
+    keymap.set('v', 'o', open_file_of_selection, opts)
+    keymap.set('v', 'O', open_file_of_selection, opts)
+    keymap.set('v', '<CR>', open_file_of_selection, opts)
     keymap.set('n', '<C-j>', open_cmdline_and_move, opts)
 
     local mygroup = api.nvim_create_augroup('NaughieForbidIns', { clear = true })
