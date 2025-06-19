@@ -87,7 +87,7 @@ local function load_to_buf(buf, win, fname)
 end
 
 local function open_file(file)
-    local wins = api.nvim_list_wins()
+    local wins = api.nvim_tabpage_list_wins(0)
 
     local term_buf_name = {
         i = term_buf_name_i(),
