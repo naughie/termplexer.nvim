@@ -3,6 +3,17 @@ local M = {}
 local api = vim.api
 local keymap = vim.keymap
 
+local augroup = {
+    i = {
+        win_closed = api.nvim_create_augroup('NaughieTermWinCloseI', { clear = true }),
+    },
+    o = {
+        forbid_ins = api.nvim_create_augroup('NaughieForbidIns', { clear = true }),
+        win_closed = api.nvim_create_augroup('NaughieTermWinCloseO', { clear = true }),
+    },
+    setup = api.nvim_create_augroup('NaughieSetup', { clear = true }),
+}
+
 local function tabv()
     vim.t.naughie = vim.t.naughie or { i = {}, o = {} }
 
@@ -227,9 +238,8 @@ local function setup_ibuf(buffer)
 end
 
 local function setup_iwin(win)
-    local mygroup = api.nvim_create_augroup('NaughieTermWinCloseI', { clear = true })
     api.nvim_create_autocmd('WinClosed', {
-        group = mygroup,
+        group = augroup.i.win_closed,
         pattern = tostring(win),
         callback = function()
             local ns = tabv()
@@ -308,9 +318,8 @@ local function setup_obuf(buffer)
     keymap.set('v', '<CR>', ':<C-u>lua require("termplexer").open_file_of_selection()<CR>', opts)
     keymap.set('n', '<C-j>', open_cmdline_and_move, opts)
 
-    local mygroup = api.nvim_create_augroup('NaughieForbidIns', { clear = true })
     api.nvim_create_autocmd('TermEnter', {
-        group = mygroup,
+        group = augroup.o.forbid_ins,
         buffer = buffer,
         callback = function() vim.cmd.stopinsert() end,
     })
@@ -319,9 +328,8 @@ end
 local function setup_owin(win)
     api.nvim_feedkeys('G', 'n', false)
 
-    local mygroup = api.nvim_create_augroup('NaughieTermWinCloseO', { clear = true })
     api.nvim_create_autocmd('WinClosed', {
-        group = mygroup,
+        group = augroup.o.win_closed,
         pattern = tostring(win),
         callback = function()
             local ns = tabv()
@@ -418,10 +426,8 @@ local function kill_term(ns)
 end
 
 local function set_autocmd_onstartup()
-    local mygroup = api.nvim_create_augroup('NaughieSetup', { clear = true })
-
     api.nvim_create_autocmd('TabClosed', {
-        group = mygroup,
+        group = augroup.setup,
         callback = function(ev)
             local tab_var = vim.t[tonumber(ev.file)]
             kill_term(tab_var.naughie)
@@ -429,7 +435,7 @@ local function set_autocmd_onstartup()
     })
 
     api.nvim_create_autocmd('TermRequest', {
-        group = mygroup,
+        group = augroup.setup,
         callback = function(ev)
             local ns = tabv()
 
@@ -448,7 +454,7 @@ local function set_autocmd_onstartup()
     })
 
     api.nvim_create_autocmd('TabNew', {
-        group = mygroup,
+        group = augroup.setup,
         callback = function()
             local tmp_cwd = get_cwd_tmp()
             if not tmp_cwd then return end
