@@ -189,6 +189,7 @@ local function send_cmd()
     if not chan_id or not ibuf then return end
 
     local lines = api.nvim_buf_get_lines(ibuf, 0, -1, false)
+    states.tabs.history.append(lines)
     local lines_joined = table.concat(lines, '\n') .. '\n'
 
     api.nvim_chan_send(chan_id, lines_joined)
@@ -203,6 +204,40 @@ local function move_to_owin()
     end
 end
 
+local function cursor_up_or_history_prev()
+    local linenr = vim.fn.line('.')
+
+    if linenr ~= 1 then
+        api.nvim_feedkeys('k', 'n', true)
+        return
+    end
+
+    local hist = states.tabs.history.get_prev()
+    if not hist then return end
+
+    local ibuf = states.tabs.i.get_term_buf()
+    api.nvim_buf_set_lines(ibuf, 0, -1, false, hist)
+end
+
+local function cursor_down_or_history_next()
+    local linenr = vim.fn.line('.')
+    local lastnr = vim.fn.line('$')
+
+    if linenr ~= lastnr then
+        api.nvim_feedkeys('j', 'n', true)
+        return
+    end
+
+    local hist = states.tabs.history.get_next()
+
+    local ibuf = states.tabs.i.get_term_buf()
+    if hist then
+        api.nvim_buf_set_lines(ibuf, 0, -1, false, hist)
+    else
+        api.nvim_buf_set_lines(ibuf, 0, -1, false, {})
+    end
+end
+
 local function setup_ibuf(buffer)
     api.nvim_buf_set_name(buffer, term_buf_name_i())
 
@@ -212,6 +247,9 @@ local function setup_ibuf(buffer)
     keymap.set('n', '<C-k>', move_to_owin, opts)
     keymap.set('i', '<C-k>', move_to_owin, opts)
     keymap.set('n', '<C-o>', open_file_of_ibuf, opts)
+
+    keymap.set('n', 'k', cursor_up_or_history_prev, opts)
+    keymap.set('n', 'j', cursor_down_or_history_next, opts)
 end
 
 local function setup_iwin(win)

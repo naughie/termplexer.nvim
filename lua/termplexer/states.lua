@@ -159,6 +159,70 @@ M.tabs = {
             end
         end,
     },
+
+    history = {
+        append = function(value, tab)
+            local t = tab_or_current(tab)
+            local v = M.inner_states.tabs[t]
+            if v then
+                if v.history then
+                    if v.history.list then
+                        table.insert(v.history.list, value)
+                        v.history.pos = #v.history.list + 1
+                    else
+                        v.history.list = { value }
+                        v.history.pos = 2
+                    end
+                else
+                    v.history = {
+                        list = { value },
+                        pos = 2,
+                    }
+                end
+            else
+                M.inner_states.tabs[t] = {
+                    history = {
+                        list = { value },
+                        pos = 2,
+                    },
+                }
+            end
+        end,
+
+        get_prev = function(tab)
+            local v = M.inner_states.tabs[tab_or_current(tab)]
+            if v and v.history then
+                if not v.history.list or not v.history.pos then return nil end
+                if #v.history.list == 0 then return nil end
+
+                if v.history.pos == 0 or v.history.pos == 1 then
+                    return v.history.list[1]
+                end
+
+                v.history.pos = v.history.pos - 1
+                return v.history.list[v.history.pos]
+            else
+                return nil
+            end
+        end,
+
+        get_next = function(tab)
+            local v = M.inner_states.tabs[tab_or_current(tab)]
+            if v and v.history then
+                if not v.history.list or not v.history.pos then return nil end
+                if #v.history.list == 0 then return nil end
+
+                if v.history.pos == #v.history.list or v.history.pos == #v.history.list + 1 then
+                    return nil
+                end
+
+                v.history.pos = v.history.pos + 1
+                return v.history.list[v.history.pos]
+            else
+                return nil
+            end
+        end,
+    },
 }
 
 M.global = {
