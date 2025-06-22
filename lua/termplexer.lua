@@ -465,7 +465,7 @@ local function set_autocmd_onstartup()
         end,
     })
 
-    api.nvim_create_autocmd('VimEnter', {
+    api.nvim_create_autocmd('UIEnter', {
         group = mygroup,
         callback = function()
             if vim.fn.argc() == 0 then open_term() end
