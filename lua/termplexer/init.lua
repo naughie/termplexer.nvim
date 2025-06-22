@@ -1,5 +1,7 @@
 local M = {}
 
+local states = require("termplexer.states")
+
 local api = vim.api
 local keymap = vim.keymap
 
@@ -14,23 +16,6 @@ local augroup = {
     setup = api.nvim_create_augroup('NaughieSetup', { clear = true }),
 }
 
-local function tabv()
-    vim.t.naughie = vim.t.naughie or { i = {}, o = {} }
-
-    return vim.t.naughie
-end
-
-local function get_cwd_tmp()
-    local gns = vim.g.naughie or { tmp = {} }
-    return gns.tmp.cwd
-end
-
-local function set_cwd_tmp(cwd)
-    local gns = vim.g.naughie or { tmp = {} }
-    gns.tmp.cwd = cwd
-    vim.g.naughie = gns
-end
-
 local function term_buf_name_i()
     local tab = api.nvim_get_current_tabpage()
     return 'Terminal input ' .. tostring(tab)
@@ -42,13 +27,12 @@ local function term_buf_name_o()
 end
 
 local function get_or_create_buf(ns)
-    if ns.term_buf_id then
-        return ns.term_buf_id
-    else
-        local buf = api.nvim_create_buf(false, true)
-        api.nvim_buf_set_option(buf, 'bufhidden', 'hide')
-        return buf
-    end
+    local state = ns.get_term_buf()
+    if state then return state end
+
+    local buf = api.nvim_create_buf(false, true)
+    api.nvim_buf_set_option(buf, 'bufhidden', 'hide')
+    return buf
 end
 
 local function term_height()
@@ -64,11 +48,11 @@ local function term_width()
 end
 
 local function open_float(ns, height, row)
-    if ns.term_win_id then return end
+    if ns.get_term_win() then return end
 
     local width, col = term_width()
 
-    local win = api.nvim_open_win(ns.term_buf_id, true, {
+    local win = api.nvim_open_win(ns.get_term_buf(), true, {
         relative = 'editor',
         height = height,
         width = width,
@@ -82,9 +66,9 @@ local function open_float(ns, height, row)
 end
 
 local function get_cwd()
-    local ns = tabv()
-    if ns.term_cwd then
-        return ns.term_cwd
+    local state = states.tabs.get_cwd()
+    if state then
+        return state
     else
         return vim.uv.cwd()
     end
@@ -145,15 +129,11 @@ local function open_file_under_cursor()
     local full_fname = expand_regular_filepath(word)
 
     if full_fname then
-        local ns = tabv()
+        local owin = states.tabs.o.get_term_win()
 
-        if ns.o.term_win_id then
-            ns = tabv()
-            local win = ns.o.term_win_id
-            ns.o.term_win_id = nil
-            vim.t.naughie = ns
-
-            api.nvim_win_close(win, true)
+        if owin then
+            states.tabs.o.set_term_win(nil)
+            api.nvim_win_close(owin, true)
         end
 
         open_file(full_fname)
@@ -171,15 +151,11 @@ function M.open_file_of_selection()
     local full_fname = expand_regular_filepath(selection)
 
     if full_fname then
-        local ns = tabv()
+        local owin = states.tabs.o.get_term_win()
 
-        if ns.o.term_win_id then
-            ns = tabv()
-            local win = ns.o.term_win_id
-            ns.o.term_win_id = nil
-            vim.t.naughie = ns
-
-            api.nvim_win_close(win, true)
+        if owin then
+            states.tabs.o.set_term_win(nil)
+            api.nvim_win_close(owin, true)
         end
 
         open_file(full_fname)
@@ -187,22 +163,20 @@ function M.open_file_of_selection()
 end
 
 local function open_file_of_ibuf()
-    local ns = tabv()
-    if not ns.i.term_buf_id then return end
+    local ibuf = states.tabs.i.get_term_buf()
+    if not ibuf then return end
 
-    local lines = api.nvim_buf_get_lines(ns.i.term_buf_id, 0, -1, false)
+    local lines = api.nvim_buf_get_lines(ibuf, 0, -1, false)
     local lines_joined = table.concat(lines, '\n')
 
     local full_fname = expand_regular_filepath(lines_joined)
 
     if full_fname then
-        if ns.i.term_win_id then
-            ns = tabv()
-            local win = ns.i.term_win_id
-            ns.i.term_win_id = nil
-            vim.t.naughie = ns
+        local iwin = states.tabs.i.get_term_win()
 
-            api.nvim_win_close(win, true)
+        if iwin then
+            states.tabs.i.set_term_win(nil)
+            api.nvim_win_close(iwin, true)
         end
 
         open_file(full_fname)
@@ -210,20 +184,23 @@ local function open_file_of_ibuf()
 end
 
 local function send_cmd()
-    local ns = tabv()
-    if not ns.term_chan_id or not ns.i.term_buf_id then return end
+    local chan_id = states.tabs.get_chan_id()
+    local ibuf = states.tabs.i.get_term_buf()
+    if not chan_id or not ibuf then return end
 
-    local lines = api.nvim_buf_get_lines(ns.i.term_buf_id, 0, -1, false)
+    local lines = api.nvim_buf_get_lines(ibuf, 0, -1, false)
     local lines_joined = table.concat(lines, '\n') .. '\n'
 
-    api.nvim_chan_send(ns.term_chan_id, lines_joined)
-    api.nvim_buf_set_lines(ns.i.term_buf_id, 0, -1, false, {})
+    api.nvim_chan_send(chan_id, lines_joined)
+    api.nvim_buf_set_lines(ibuf, 0, -1, false, {})
 end
 
 local function move_to_owin()
-    local ns = tabv()
-    vim.cmd.stopinsert()
-    api.nvim_set_current_win(ns.o.term_win_id)
+    local owin = states.tabs.o.get_term_win()
+    if owin then
+        vim.cmd.stopinsert()
+        api.nvim_set_current_win(owin)
+    end
 end
 
 local function setup_ibuf(buffer)
@@ -238,18 +215,17 @@ local function setup_ibuf(buffer)
 end
 
 local function setup_iwin(win)
+    local tab = api.nvim_get_current_tabpage()
+
     api.nvim_create_autocmd('WinClosed', {
         group = augroup.i.win_closed,
         pattern = tostring(win),
         callback = function()
-            local ns = tabv()
-            ns.i.term_win_id = nil
-            vim.t.naughie = ns
+            states.tabs.i.set_term_win(nil, tab)
 
-            if ns.o.term_win_id then
-                local win = ns.o.term_win_id
-                ns.o.term_win_id = nil
-                vim.t.naughie = ns
+            local win = states.tabs.o.get_term_win(tab)
+            if win then
+                states.tabs.o.set_term_win(nil, tab)
                 api.nvim_win_close(win, true)
             end
 
@@ -258,24 +234,20 @@ local function setup_iwin(win)
 end
 
 local function create_cmdline()
-    local ns = tabv()
-
-    local buf = get_or_create_buf(ns.i)
-    ns.i.term_buf_id = buf
+    local buf = get_or_create_buf(states.tabs.i)
+    states.tabs.i.set_term_buf(buf)
     setup_ibuf(buf)
 
     local h_out, row_out = term_height()
-    local win = open_float(ns.i, 3, h_out + row_out + 2)
-    ns.i.term_win_id = win
+    local win = open_float(states.tabs.i, 3, h_out + row_out + 2)
+    states.tabs.i.set_term_win(win)
     setup_iwin(win)
-
-    vim.t.naughie = ns
 end
 
 local function open_cmdline_and_insert()
-    local ns = tabv()
-    if ns.i.term_win_id then
-        api.nvim_set_current_win(ns.i.term_win_id)
+    local iwin = states.tabs.i.get_term_win()
+    if iwin then
+        api.nvim_set_current_win(iwin)
     else
         create_cmdline()
     end
@@ -283,9 +255,9 @@ local function open_cmdline_and_insert()
 end
 
 local function open_cmdline_and_append()
-    local ns = tabv()
-    if ns.i.term_win_id then
-        api.nvim_set_current_win(ns.i.term_win_id)
+    local iwin = states.tabs.i.get_term_win()
+    if iwin then
+        api.nvim_set_current_win(iwin)
     else
         create_cmdline()
     end
@@ -293,12 +265,10 @@ local function open_cmdline_and_append()
 end
 
 local function open_cmdline_and_move()
-    local ns = tabv()
-    if not ns.i.term_win_id then
+    if not states.tabs.i.get_term_win() then
         create_cmdline()
     end
-    ns = tabv()
-    api.nvim_set_current_win(ns.i.term_win_id)
+    api.nvim_set_current_win(states.tabs.i.get_term_win())
 end
 
 local function setup_obuf(buffer)
@@ -328,21 +298,18 @@ end
 local function setup_owin(win)
     api.nvim_feedkeys('G', 'n', false)
 
+    local tab = api.nvim_get_current_tabpage()
+
     api.nvim_create_autocmd('WinClosed', {
         group = augroup.o.win_closed,
         pattern = tostring(win),
         callback = function()
-            local ns = tabv()
-            ns.o.term_win_id = nil
-            vim.t.naughie = ns
+            states.tabs.o.set_term_win(nil, tab)
 
-            if ns.i.term_win_id then
-                ns = tabv()
-                local win = ns.i.term_win_id
-                ns.i.term_win_id = nil
-                vim.t.naughie = ns
-
-                api.nvim_win_close(win, true)
+            local iwin = states.tabs.i.get_term_win(tab)
+            if iwin then
+                states.tabs.i.set_term_win(nil, tab)
+                api.nvim_win_close(iwin, true)
             end
         end,
     })
@@ -352,6 +319,8 @@ local function launch_term()
     local width = term_width()
     local height = term_height()
 
+    local tab = api.nvim_get_current_tabpage()
+
     local jobid = vim.fn.jobstart(vim.env.SHELL, {
         term = true,
         clear_env = false,
@@ -359,30 +328,21 @@ local function launch_term()
         width = width,
         cwd = get_cwd(),
         on_exit = function()
-            local ns = tabv()
-
+            local owin = states.tabs.o.get_term_win(tab)
             -- Invalid if killed on TabClosed
-            if ns.o.term_win_id and not api.nvim_win_is_valid(ns.o.term_win_id) then return end
+            if owin and not api.nvim_win_is_valid(owin) then return end
 
-            ns.term_chan_id = nil
-            vim.t.naughie = ns
+            states.tabs.set_chan_id(nil, tab)
 
-            if ns.o.term_win_id then
-                ns = tabv()
-                local win = ns.o.term_win_id
-                ns.o.term_win_id = nil
-                vim.t.naughie = ns
-
-                api.nvim_win_close(win, true)
+            if owin then
+                states.tabs.o.set_term_win(nil, tab)
+                api.nvim_win_close(owin, true)
             end
 
-            if ns.o.term_buf_id then
-                ns = tabv()
-                local buf = ns.o.term_buf_id
-                ns.o.term_buf_id = nil
-                vim.t.naughie = ns
-
-                api.nvim_buf_delete(buf, { force = true })
+            local obuf = states.tabs.o.get_term_buf(tab)
+            if obuf then
+                states.tabs.o.set_term_buf(nil, tab)
+                api.nvim_buf_delete(obuf, { force = true })
             end
 
             vim.cmd.stopinsert()
@@ -392,20 +352,16 @@ local function launch_term()
 end
 
 local function open_term()
-    local ns = tabv()
-
-    local buf = get_or_create_buf(ns.o)
-    ns.o.term_buf_id = buf
+    local buf = get_or_create_buf(states.tabs.o)
+    states.tabs.o.set_term_buf(buf)
     setup_obuf(buf)
 
     local h, row = term_height()
-    local win = open_float(ns.o, h, row)
-    ns.o.term_win_id = win
+    local win = open_float(states.tabs.o, h, row)
+    states.tabs.o.set_term_win(win)
     setup_owin(win)
 
-    vim.t.naughie = ns
-
-    if ns.term_chan_id then
+    if states.tabs.get_chan_id() then
         vim.defer_fn(open_cmdline_and_insert, 100)
         return
     end
@@ -413,41 +369,36 @@ local function open_term()
     api.nvim_buf_set_option(buf, 'modified', false)
 
     local chan_id = launch_term()
-    ns.term_chan_id = chan_id
-
-    vim.t.naughie = ns
+    states.tabs.set_chan_id(chan_id)
 
     vim.defer_fn(open_cmdline_and_insert, 100)
 end
 
-local function kill_term(ns)
-    if not ns.term_chan_id then end
-    vim.fn.jobstop(ns.term_chan_id)
+local function kill_term(tab)
+    local chan_id = states.tabs.get_chan_id(tab)
+    states.tabs.close(tab)
+    if chan_id then vim.fn.jobstop(chan_id) end
 end
 
 local function set_autocmd_onstartup()
     api.nvim_create_autocmd('TabClosed', {
         group = augroup.setup,
         callback = function(ev)
-            local tab_var = vim.t[tonumber(ev.file)]
-            kill_term(tab_var.naughie)
+            kill_term(tonumber(ev.file))
         end,
     })
 
     api.nvim_create_autocmd('TermRequest', {
         group = augroup.setup,
         callback = function(ev)
-            local ns = tabv()
-
             if string.sub(ev.data.sequence, 1, 4) == '\x1b]7;' then
                 local dir = string.gsub(ev.data.sequence, '\x1b]7;file://[^/]*', '')
                 if vim.fn.isdirectory(dir) == 0 then
                     return
                 end
 
-                ns.term_cwd = dir
-                vim.t.naughie = ns
-                set_cwd_tmp(dir)
+                states.tabs.set_cwd(dir)
+                states.global.set_tmp_cwd(dir)
                 vim.uv.chdir(dir)
             end
         end,
@@ -456,12 +407,10 @@ local function set_autocmd_onstartup()
     api.nvim_create_autocmd('TabNew', {
         group = augroup.setup,
         callback = function()
-            local tmp_cwd = get_cwd_tmp()
+            local tmp_cwd = states.global.get_tmp_cwd()
             if not tmp_cwd then return end
 
-            local ns = tabv()
-            ns.term_cwd = tmp_cwd
-            vim.t.naughie = ns
+            states.tabs.set_cwd(tmp_cwd)
         end,
     })
 
@@ -475,14 +424,19 @@ local function set_autocmd_onstartup()
     api.nvim_create_autocmd('TabEnter', {
         group = mygroup,
         callback = function()
-            local ns = tabv()
-            if ns.term_cwd then vim.uv.chdir(ns.term_cwd) end
+            local cwd = states.tabs.get_cwd()
+            if cwd then vim.uv.chdir(cwd) end
         end
     })
 end
 
+local function inspect_states()
+    print(vim.inspect(states.inner_states))
+end
+
 function M.setup(opts)
     api.nvim_create_user_command('Term', open_term, { nargs = 0 })
+    api.nvim_create_user_command('TermInspect', inspect_states, { nargs = 0 })
     set_autocmd_onstartup()
 
     keymap.set('n', '<Space>t', open_term, { silent = true })
