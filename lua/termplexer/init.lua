@@ -2,6 +2,18 @@ local M = {}
 
 local states = require("termplexer.states")
 
+local config = {
+    setup_opts = {
+        open_term_if_no_file = true,
+        dim = {
+            width = 50,
+            height_output = 50,
+            height_input = 3,
+        },
+    },
+    keymaps = {},
+}
+
 local api = vim.api
 local keymap = vim.keymap
 
@@ -35,14 +47,42 @@ local function get_or_create_buf(ns)
     return buf
 end
 
-local function term_height()
-    local height = math.floor(api.nvim_get_option('lines') * 0.8)
+local function term_height_i()
+    if config.setup_opts.dim and config.setup_opts.dim.height_input then
+        if type(config.setup_opts.dim.height_input) == 'number' then
+            return config.setup_opts.dim.height_input
+        elseif type(config.setup_opts.dim.height_input) == 'function' then
+            return config.setup_opts.dim.height_input()
+        end
+    else
+        return 3
+    end
+end
+
+local function term_height_o()
+    local height = 50
+    if config.setup_opts.dim and config.setup_opts.dim.height_output then
+        if type(config.setup_opts.dim.height_output) == 'number' then
+            height = config.setup_opts.dim.height_output
+        elseif type(config.setup_opts.dim.height_output) == 'function' then
+            height = config.setup_opts.dim.height_output()
+        end
+    end
+
     local row = math.floor((api.nvim_get_option('lines') - height) / 2)
     return height, row
 end
 
 local function term_width()
-    local width = math.floor(api.nvim_get_option('columns') * 0.5)
+    local width = 50
+    if config.setup_opts.dim and config.setup_opts.dim.width then
+        if type(config.setup_opts.dim.width) == 'number' then
+            width = config.setup_opts.dim.width
+        elseif type(config.setup_opts.dim.width) == 'function' then
+            width = config.setup_opts.dim.width()
+        end
+    end
+
     local col = math.floor((api.nvim_get_option('columns') - width) / 2)
     return width, col
 end
@@ -140,7 +180,7 @@ local function open_file_under_cursor()
     end
 end
 
-function M.open_file_of_selection()
+local function open_file_from_selection()
     local start_pos = vim.fn.getpos("'<")
     local end_pos = vim.fn.getpos("'>")
 
@@ -241,15 +281,11 @@ end
 local function setup_ibuf(buffer)
     api.nvim_buf_set_name(buffer, term_buf_name_i())
 
-    local opts = { buffer = buffer, silent = true }
-    keymap.set('i', '<CR>', send_cmd, opts)
-    keymap.set('n', 'q', ':q<CR>', opts)
-    keymap.set('n', '<C-k>', move_to_owin, opts)
-    keymap.set('i', '<C-k>', move_to_owin, opts)
-    keymap.set('n', '<C-o>', open_file_of_ibuf, opts)
-
-    keymap.set('n', 'k', cursor_up_or_history_prev, opts)
-    keymap.set('n', 'j', cursor_down_or_history_next, opts)
+    if config.keymaps.input_buffer then
+        for _, args in ipairs(config.keymaps.input_buffer) do
+            keymap.set(args[1], args[2], args[3], { buffer = buffer, silent = true })
+        end
+    end
 end
 
 local function setup_iwin(win)
@@ -276,8 +312,10 @@ local function create_cmdline()
     states.tabs.i.set_term_buf(buf)
     setup_ibuf(buf)
 
-    local h_out, row_out = term_height()
-    local win = open_float(states.tabs.i, 3, h_out + row_out + 2)
+    local h_out, row_out = term_height_o()
+    local h_in = term_height_i()
+
+    local win = open_float(states.tabs.i, h_in, h_out + row_out + 2)
     states.tabs.i.set_term_win(win)
     setup_iwin(win)
 end
@@ -312,21 +350,11 @@ end
 local function setup_obuf(buffer)
     api.nvim_buf_set_name(buffer, term_buf_name_o())
 
-    local opts = { buffer = buffer, silent = true }
-
-    keymap.set('n', 'q', ':q<CR>', opts)
-    keymap.set('n', 'i', open_cmdline_and_insert, opts)
-    keymap.set('n', 'I', open_cmdline_and_insert, opts)
-    keymap.set('n', 'a', open_cmdline_and_append, opts)
-    keymap.set('n', 'A', open_cmdline_and_append, opts)
-    keymap.set('n', 'o', open_file_under_cursor, opts)
-    keymap.set('n', 'O', open_file_under_cursor, opts)
-    keymap.set('v', 'o', ':<C-u>lua require("termplexer").open_file_of_selection()<CR>', opts)
-    keymap.set('v', 'O', ':<C-u>lua require("termplexer").open_file_of_selection()<CR>', opts)
-    keymap.set('v', '<CR>', ':<C-u>lua require("termplexer").open_file_of_selection()<CR>', opts)
-    keymap.set('n', '<C-j>', open_cmdline_and_move, opts)
-
-    keymap.set('t', '<C-q>', '<C-\\><C-n>', opts)
+    if config.keymaps.output_buffer then
+        for _, args in ipairs(config.keymaps.output_buffer) do
+            keymap.set(args[1], args[2], args[3], { buffer = buffer, silent = true })
+        end
+    end
 end
 
 local function setup_owin(win)
@@ -351,7 +379,7 @@ end
 
 local function launch_term()
     local width = term_width()
-    local height = term_height()
+    local height = term_height_o()
 
     local tab = api.nvim_get_current_tabpage()
 
@@ -390,7 +418,7 @@ local function open_term()
     states.tabs.o.set_term_buf(buf)
     setup_obuf(buf)
 
-    local h, row = term_height()
+    local h, row = term_height_o()
     local win = open_float(states.tabs.o, h, row)
     states.tabs.o.set_term_win(win)
     setup_owin(win)
@@ -448,12 +476,14 @@ local function set_autocmd_onstartup()
         end,
     })
 
-    api.nvim_create_autocmd('UIEnter', {
-        group = mygroup,
-        callback = function()
-            if vim.fn.argc() == 0 then open_term() end
-        end,
-    })
+    if config.setup_opts.open_term_if_no_file then
+        api.nvim_create_autocmd('UIEnter', {
+            group = mygroup,
+            callback = function()
+                if vim.fn.argc() == 0 then open_term() end
+            end,
+        })
+    end
 
     api.nvim_create_autocmd('TabEnter', {
         group = mygroup,
@@ -476,15 +506,50 @@ local function enter_term_insert()
 end
 
 function M.setup(opts)
+    config.setup_opts = opts
+
     api.nvim_create_user_command('Term', open_term, { nargs = 0 })
     api.nvim_create_user_command('TermInspect', inspect_states, { nargs = 0 })
     api.nvim_create_user_command('Enterm', enter_term_insert, { nargs = 0 })
     set_autocmd_onstartup()
-
-    keymap.set('n', '<Space>t', open_term, { silent = true })
-    keymap.set({ 'n', 'i' }, '<C-t>', function() vim.cmd('stopi | tabnew | vsplit | vsplit | Term') end, { silent = true })
-    keymap.set({ 'n', 'i' }, '<C-Tab>', function() vim.cmd('stopi | tabn') end, { silent = true })
-    keymap.set({ 'n', 'i' }, '<C-S-Tab>', function() vim.cmd('stopi | tabp') end, { silent = true })
 end
+
+function M.define_keymaps(keymaps)
+    if not keymaps then return end
+
+    if keymaps.global then
+        for _, args in ipairs(keymaps.global) do
+            keymap.set(args[1], args[2], args[3], { silent = true })
+        end
+    end
+
+    if keymaps.input_buffer then
+        config.keymaps.input_buffer = keymaps.input_buffer
+    end
+    if keymaps.output_buffer then
+        config.keymaps.output_buffer = keymaps.output_buffer
+    end
+end
+
+M.fn = {
+    open_or_create_term = open_term,
+    kill_term = kill_term,
+    enter_term_insert = enter_term_insert,
+
+    send_cmd = send_cmd,
+
+    move_to_output_win = move_to_owin,
+
+    open_file_from_input_buffer = open_file_of_ibuf,
+    open_file_under_cursor = open_file_under_cursor,
+    open_file_from_selection = open_file_of_selection,
+
+    cursor_up_or_history_prev = cursor_up_or_history_prev,
+    cursor_down_or_history_next = cursor_down_or_history_next,
+
+    open_cmdline_and_insert = open_cmdline_and_insert,
+    open_cmdline_and_append = open_cmdline_and_append,
+    open_cmdline_and_move = open_cmdline_and_move,
+}
 
 return M
