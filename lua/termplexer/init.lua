@@ -326,11 +326,7 @@ local function setup_obuf(buffer)
     keymap.set('v', '<CR>', ':<C-u>lua require("termplexer").open_file_of_selection()<CR>', opts)
     keymap.set('n', '<C-j>', open_cmdline_and_move, opts)
 
-    api.nvim_create_autocmd('TermEnter', {
-        group = augroup.o.forbid_ins,
-        buffer = buffer,
-        callback = function() vim.cmd.stopinsert() end,
-    })
+    keymap.set('t', '<C-q>', '<C-\\><C-n>', opts)
 end
 
 local function setup_owin(win)
@@ -472,9 +468,17 @@ local function inspect_states()
     print(vim.inspect(states.inner_states))
 end
 
+local function enter_term_insert()
+    local owin = states.tabs.o.get_term_win()
+    if not owin then return end
+    api.nvim_set_current_win(owin)
+    vim.cmd.startinsert()
+end
+
 function M.setup(opts)
     api.nvim_create_user_command('Term', open_term, { nargs = 0 })
     api.nvim_create_user_command('TermInspect', inspect_states, { nargs = 0 })
+    api.nvim_create_user_command('Enterm', enter_term_insert, { nargs = 0 })
     set_autocmd_onstartup()
 
     keymap.set('n', '<Space>t', open_term, { silent = true })
