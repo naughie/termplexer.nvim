@@ -219,6 +219,8 @@ local function open_file_of_ibuf()
             api.nvim_win_close(iwin, true)
         end
 
+        api.nvim_buf_set_lines(ibuf, 0, -1, false, {})
+
         open_file(full_fname)
     end
 end
