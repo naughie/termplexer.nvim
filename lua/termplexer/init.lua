@@ -38,9 +38,8 @@ local function term_buf_name_o()
     return 'Terminal output ' .. tostring(tab)
 end
 
-local function get_or_create_buf(ns)
-    local state = ns.get_term_buf()
-    if state then return state end
+local function create_buf_unless_exists(ns)
+    if ns.get_term_buf() then return end
 
     local buf = api.nvim_create_buf(false, true)
     api.nvim_buf_set_option(buf, 'bufhidden', 'hide')
@@ -310,16 +309,21 @@ local function setup_iwin(win)
 end
 
 local function create_cmdline()
-    local buf = get_or_create_buf(states.tabs.i)
-    states.tabs.i.set_term_buf(buf)
-    setup_ibuf(buf)
+    local buf = create_buf_unless_exists(states.tabs.i)
+    if buf then
+        states.tabs.i.set_term_buf(buf)
+        setup_ibuf(buf)
+    end
+
 
     local h_out, row_out = term_height_o()
     local h_in = term_height_i()
 
     local win = open_float(states.tabs.i, h_in, h_out + row_out + 2)
-    states.tabs.i.set_term_win(win)
-    setup_iwin(win)
+    if win then
+        states.tabs.i.set_term_win(win)
+        setup_iwin(win)
+    end
 end
 
 local function open_cmdline_and_insert()
@@ -416,21 +420,25 @@ local function launch_term()
 end
 
 local function open_term()
-    local buf = get_or_create_buf(states.tabs.o)
-    states.tabs.o.set_term_buf(buf)
-    setup_obuf(buf)
+    local buf = create_buf_unless_exists(states.tabs.o)
+    if buf then
+        states.tabs.o.set_term_buf(buf)
+        setup_obuf(buf)
+    end
 
     local h, row = term_height_o()
     local win = open_float(states.tabs.o, h, row)
-    states.tabs.o.set_term_win(win)
-    setup_owin(win)
+    if win then
+        states.tabs.o.set_term_win(win)
+        setup_owin(win)
+    end
 
     if states.tabs.get_chan_id() then
         vim.defer_fn(open_cmdline_and_insert, 100)
         return
     end
 
-    api.nvim_buf_set_option(buf, 'modified', false)
+    api.nvim_buf_set_option(states.tabs.o.get_term_buf(), 'modified', false)
 
     local chan_id = launch_term()
     states.tabs.set_chan_id(chan_id)
