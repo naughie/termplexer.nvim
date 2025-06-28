@@ -38,6 +38,15 @@ local function term_buf_name_o()
     return 'Terminal output ' .. tostring(tab)
 end
 
+local function define_keymaps_wrap(args, default_opts)
+    local rhs = args[3]
+    if type(rhs) == 'string' and M.fn[rhs] then
+        keymap.set(args[1], args[2], M.fn[rhs], default_opts)
+    else
+        keymap.set(args[1], args[2], rhs, default_opts)
+    end
+end
+
 local function create_buf_unless_exists(ns)
     if ns.get_term_buf() then return end
 
@@ -284,7 +293,7 @@ local function setup_ibuf(buffer)
 
     if config.keymaps.input_buffer then
         for _, args in ipairs(config.keymaps.input_buffer) do
-            keymap.set(args[1], args[2], args[3], { buffer = buffer, silent = true })
+            define_keymaps_wrap(args, { buffer = buffer, silent = true })
         end
     end
 end
@@ -358,7 +367,7 @@ local function setup_obuf(buffer)
 
     if config.keymaps.output_buffer then
         for _, args in ipairs(config.keymaps.output_buffer) do
-            keymap.set(args[1], args[2], args[3], { buffer = buffer, silent = true })
+            define_keymaps_wrap(args, { buffer = buffer, silent = true })
         end
     end
 end
@@ -529,7 +538,7 @@ function M.define_keymaps(keymaps)
 
     if keymaps.global then
         for _, args in ipairs(keymaps.global) do
-            keymap.set(args[1], args[2], args[3], { silent = true })
+            define_keymaps_wrap(args, { silent = true })
         end
     end
 

@@ -46,12 +46,14 @@ Example configs:
             },
         })
 
-        -- Items are bypassed to vim.keymap.set as-is
-        -- Options not supported yet
+        -- { {mode}, {lhs}, {rhs} } (see :h vim.keymap.set())
+        -- Opts are not supported yet
+        --
+        -- We accept keys of require('termplexer').fn as {rhs}
         tp.define_keymaps({
             global = {
                 -- Same as :Term below
-                { 'n', '<Space>t', tp.fn.open_or_create_term },
+                { 'n', '<Space>t', 'open_or_create_term' },
                 -- Spawn a new tab
                 { { 'n', 'i' }, '<C-t>', function() vim.cmd('stopi | tabnew | vsplit | vsplit | Term') end },
                 -- Move to the next/previous tab
@@ -61,34 +63,34 @@ Example configs:
 
             input_buffer = {
                 -- Send the input buffer to terminal's stdin, and clear the buffer
-                { {  'n', 'i' }, '<CR>', tp.fn.send_cmd },
+                { {  'n', 'i' }, '<CR>', 'send_cmd' },
                 { 'n', 'q', ':q<CR>' },
-                { { 'n', 'i' }, '<C-k>', tp.fn.move_to_output_win },
+                { { 'n', 'i' }, '<C-k>', 'move_to_output_win' },
                 -- If the content of the input buffer is a filename, open it
-                { 'n', '<C-o>', tp.fn.open_file_from_input_buffer },
+                { 'n', '<C-o>', 'open_file_from_input_buffer' },
 
                 -- Move up/down the command history
-                { 'n', 'k', tp.fn.cursor_up_or_history_prev },
-                { 'n', 'j', tp.fn.cursor_down_or_history_next },
+                { 'n', 'k', 'cursor_up_or_history_prev' },
+                { 'n', 'j', 'cursor_down_or_history_next' },
             },
 
             output_buffer = {
                 { 'n', 'q', ':q<CR>' },
                 -- Open an input window if not exists, and enter the insert mode (like i)
-                { 'n', 'i', tp.fn.open_cmdline_and_insert },
-                { 'n', 'I', tp.fn.open_cmdline_and_insert },
+                { 'n', 'i', 'open_cmdline_and_insert' },
+                { 'n', 'I', 'open_cmdline_and_insert' },
                 -- Same as open_cmdline_and_insert, but like a
-                { 'n', 'a', tp.fn.open_cmdline_and_append },
-                { 'n', 'A', tp.fn.open_cmdline_and_append },
+                { 'n', 'a', 'open_cmdline_and_append' },
+                { 'n', 'A', 'open_cmdline_and_append' },
                 -- If <cWORD> is a filename, open it
-                { 'n', 'o', tp.fn.open_file_under_cursor },
-                { 'n', 'O', tp.fn.open_file_under_cursor },
+                { 'n', 'o', 'open_file_under_cursor' },
+                { 'n', 'O', 'open_file_under_cursor' },
                 -- If '<,'> is a filename, open it
                 { 'v', 'o', ':<C-u>lua require("termplexer").fn.open_file_from_selection()<CR>' },
                 { 'v', 'O', ':<C-u>lua require("termplexer").fn.open_file_from_selection()<CR>' },
                 { 'v', '<CR>', ':<C-u>lua require("termplexer").open_file_from_selection()<CR>' },
                 -- Same as open_cmdline_and_insert, but not entering the insert mode
-                { 'n', '<C-j>', tp.fn.open_cmdline_and_move },
+                { 'n', '<C-j>', 'open_cmdline_and_move' },
 
                 -- Exit the terminal mode
                 { 't', '<C-q>', '<C-\\><C-n>' },
