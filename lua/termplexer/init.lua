@@ -524,15 +524,6 @@ local function enter_term_insert()
     vim.cmd.startinsert()
 end
 
-function M.setup(opts)
-    config.setup_opts = opts
-
-    api.nvim_create_user_command('Term', open_term, { nargs = 0 })
-    api.nvim_create_user_command('TermInspect', inspect_states, { nargs = 0 })
-    api.nvim_create_user_command('Enterm', enter_term_insert, { nargs = 0 })
-    set_autocmd_onstartup()
-end
-
 function M.define_keymaps(keymaps)
     if not keymaps then return end
 
@@ -548,6 +539,17 @@ function M.define_keymaps(keymaps)
     if keymaps.output_buffer then
         config.keymaps.output_buffer = keymaps.output_buffer
     end
+end
+
+function M.setup(opts)
+    config.setup_opts = opts
+
+    api.nvim_create_user_command('Term', open_term, { nargs = 0 })
+    api.nvim_create_user_command('TermInspect', inspect_states, { nargs = 0 })
+    api.nvim_create_user_command('Enterm', enter_term_insert, { nargs = 0 })
+    set_autocmd_onstartup()
+
+    M.define_keymaps(opts.keymaps)
 end
 
 M.fn = {

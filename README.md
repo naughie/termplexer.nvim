@@ -9,6 +9,7 @@
 - OSC 7 support
     - `vim.uv.chdir()` (`:h uv.chdir()`) automatically on receiving `TermRequest` with OSC 7 (`:h terminal-osc7`)
     - When spawning a new tab, the working directory is synced with the last OSC 7 emission
+    - HOSTNAME is not supported yet. We'd like to implement it in the future
 - Remember shell's states **tabwise**
     - Terminal process
     - Command history
@@ -33,24 +34,21 @@ Example configs:
     -- It can be lazy - use :Term as a trigger.
     -- cmd = 'Term',
     lazy = false,
-    config = function()
-        local tp = require('termplexer')
-        tp.setup({
-            -- Automatically open terminal windows on UIEnter, if no command line arguments given (i.e. argc() == 0)
-            open_term_if_no_file = true,
-            -- Size of terminal windows
-            dim = {
-                width = function() return math.floor(vim.api.nvim_get_option('columns') * 0.5) end,
-                height_output = function() return math.floor(vim.api.nvim_get_option('lines') * 0.8) end,
-                height_input = 3,
-            },
-        })
+    opts = {
+        -- Automatically open terminal windows on UIEnter, if no command line arguments given (i.e. argc() == 0)
+        open_term_if_no_file = true,
+        -- Size of terminal windows
+        dim = {
+            width = function() return math.floor(vim.api.nvim_get_option('columns') * 0.5) end,
+            height_output = function() return math.floor(vim.api.nvim_get_option('lines') * 0.8) end,
+            height_input = 3,
+        },
 
         -- { {mode}, {lhs}, {rhs} } (see :h vim.keymap.set())
-        -- Opts are not supported yet
+        -- {opts} are not supported yet
         --
         -- We accept keys of require('termplexer').fn as {rhs}
-        tp.define_keymaps({
+        keymaps = {
             global = {
                 -- Same as :Term below
                 { 'n', '<Space>t', 'open_or_create_term' },
@@ -95,8 +93,8 @@ Example configs:
                 -- Exit the terminal mode
                 { 't', '<C-q>', '<C-\\><C-n>' },
             },
-        })
-    end,
+        },
+    },
 }
 ```
 
