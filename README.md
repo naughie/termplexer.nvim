@@ -86,7 +86,7 @@ Example configs:
                 -- If '<,'> is a filename, open it
                 { 'v', 'o', ':<C-u>lua require("termplexer").fn.open_file_from_selection()<CR>' },
                 { 'v', 'O', ':<C-u>lua require("termplexer").fn.open_file_from_selection()<CR>' },
-                { 'v', '<CR>', ':<C-u>lua require("termplexer").open_file_from_selection()<CR>' },
+                { 'v', '<CR>', ':<C-u>lua require("termplexer").fn.open_file_from_selection()<CR>' },
                 -- Same as open_cmdline_and_insert, but not entering the insert mode
                 { 'n', '<C-j>', 'open_cmdline_and_move' },
 
