@@ -557,7 +557,7 @@ M.fn = {
 
     open_file_from_input_buffer = open_file_of_ibuf,
     open_file_under_cursor = open_file_under_cursor,
-    open_file_from_selection = open_file_of_selection,
+    open_file_from_selection = open_file_from_selection,
 
     cursor_up_or_history_prev = cursor_up_or_history_prev,
     cursor_down_or_history_next = cursor_down_or_history_next,
