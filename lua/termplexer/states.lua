@@ -56,6 +56,25 @@ M.tabs = {
         end
     end,
 
+    get_last_active_win = function(tab)
+        local v = M.inner_states.tabs[tab_or_current(tab)]
+        if v then
+            return v.last_active_win
+        else
+            return nil
+        end
+    end,
+
+    set_last_active_win = function(value, tab)
+        local t = tab_or_current(tab)
+        local v = M.inner_states.tabs[t]
+        if v then
+            v.last_active_win = value
+        else
+            M.inner_states.tabs[t] = { last_active_win = value }
+        end
+    end,
+
     i = {
         get_term_buf = function(tab)
             local v = M.inner_states.tabs[tab_or_current(tab)]

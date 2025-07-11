@@ -22,7 +22,6 @@ local augroup = {
         win_closed = api.nvim_create_augroup('NaughieTermWinCloseI', { clear = true }),
     },
     o = {
-        forbid_ins = api.nvim_create_augroup('NaughieForbidIns', { clear = true }),
         win_closed = api.nvim_create_augroup('NaughieTermWinCloseO', { clear = true }),
     },
     setup = api.nvim_create_augroup('NaughieSetup', { clear = true }),
@@ -122,39 +121,19 @@ local function get_cwd()
     end
 end
 
-local function load_to_buf(buf, win, fname)
-    api.nvim_buf_call(buf, function()
-        vim.cmd('edit! ' .. vim.fn.fnameescape(fname))
-    end)
-    api.nvim_set_current_win(win)
+local function open_file_into_current_win(file)
+    vim.cmd('edit! ' .. vim.fn.fnameescape(file))
 end
 
-local function open_file(file)
-    local wins = api.nvim_tabpage_list_wins(0)
-
-    local term_buf_name = {
-        i = term_buf_name_i(),
-        o = term_buf_name_o(),
-    }
-
-    local first_nonterm_win = nil
-
-    for _, win in ipairs(wins) do
-        local buf = api.nvim_win_get_buf(win)
-        local buf_file = api.nvim_buf_get_name(buf)
-
-        if buf_file == '' then
-            load_to_buf(buf, win, file)
-            return
-        elseif not first_nonterm_win and buf_file ~= term_buf_name.i and buf_file ~= term_buf_name.o then
-            first_nonterm_win = win
-        end
+local function open_file_into_last_active_win(file)
+    local win = states.tabs.get_last_active_win()
+    if not win or not api.nvim_win_is_valid(win) then
+        return false
     end
 
-    if first_nonterm_win then
-        local buf = api.nvim_win_get_buf(first_nonterm_win)
-        load_to_buf(buf, first_nonterm_win, file)
-    end
+    api.nvim_set_current_win(win)
+    open_file_into_current_win(file)
+    return true
 end
 
 local function expand_regular_filepath(path)
@@ -177,14 +156,15 @@ local function open_file_under_cursor()
     local full_fname = expand_regular_filepath(word)
 
     if full_fname then
-        local owin = states.tabs.o.get_term_win()
+        local ok = open_file_into_last_active_win(full_fname)
 
+        local owin = states.tabs.o.get_term_win()
         if owin then
             states.tabs.o.set_term_win(nil)
             api.nvim_win_close(owin, true)
         end
 
-        open_file(full_fname)
+        if not ok then open_file_into_current_win(full_fname) end
     end
 end
 
@@ -199,14 +179,15 @@ local function open_file_from_selection()
     local full_fname = expand_regular_filepath(selection)
 
     if full_fname then
-        local owin = states.tabs.o.get_term_win()
+        local ok = open_file_into_last_active_win(full_fname)
 
+        local owin = states.tabs.o.get_term_win()
         if owin then
             states.tabs.o.set_term_win(nil)
             api.nvim_win_close(owin, true)
         end
 
-        open_file(full_fname)
+        if not ok then open_file_into_current_win(full_fname) end
     end
 end
 
@@ -220,16 +201,16 @@ local function open_file_of_ibuf()
     local full_fname = expand_regular_filepath(lines_joined)
 
     if full_fname then
-        local iwin = states.tabs.i.get_term_win()
+        local ok = open_file_into_last_active_win(full_fname)
 
+        api.nvim_buf_set_lines(ibuf, 0, -1, false, {})
+        local iwin = states.tabs.i.get_term_win()
         if iwin then
             states.tabs.i.set_term_win(nil)
             api.nvim_win_close(iwin, true)
         end
 
-        api.nvim_buf_set_lines(ibuf, 0, -1, false, {})
-
-        open_file(full_fname)
+        if not ok then open_file_into_current_win(full_fname) end
     end
 end
 
@@ -509,6 +490,19 @@ local function set_autocmd_onstartup()
         callback = function()
             local cwd = states.tabs.get_cwd()
             if cwd then vim.uv.chdir(cwd) end
+        end
+    })
+
+    api.nvim_create_autocmd('WinLeave', {
+        group = mygroup,
+        callback = function()
+            local win = api.nvim_get_current_win()
+
+            if not win then return end
+            if win == states.tabs.i.get_term_win() then return end
+            if win == states.tabs.o.get_term_win() then return end
+
+            states.tabs.set_last_active_win(win)
         end
     })
 end
