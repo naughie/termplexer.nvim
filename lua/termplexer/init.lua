@@ -203,7 +203,6 @@ local function open_file_of_ibuf()
     if full_fname then
         local ok = open_file_into_last_active_win(full_fname)
 
-        api.nvim_buf_set_lines(ibuf, 0, -1, false, {})
         local iwin = states.tabs.i.get_term_win()
         if iwin then
             states.tabs.i.set_term_win(nil)
