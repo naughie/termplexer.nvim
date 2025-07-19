@@ -201,6 +201,9 @@ local function open_file_of_ibuf()
     local full_fname = expand_regular_filepath(lines_joined)
 
     if full_fname then
+        states.tabs.history.append(lines)
+        api.nvim_buf_set_lines(ibuf, 0, -1, false, {})
+
         local ok = open_file_into_last_active_win(full_fname)
 
         local iwin = states.tabs.i.get_term_win()
