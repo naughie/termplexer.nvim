@@ -478,6 +478,14 @@ local function set_autocmd_onstartup()
         end,
     })
 
+    api.nvim_create_autocmd('VimEnter', {
+        group = augroup.setup,
+        callback = function()
+            local dir = vim.uv.cwd()
+            if dir then states.tabs.set_cwd(dir) end
+        end,
+    })
+
     if config.setup_opts.open_term_if_no_file then
         api.nvim_create_autocmd('UIEnter', {
             group = mygroup,
