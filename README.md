@@ -34,6 +34,8 @@ Example configs:
     -- It can be lazy - use :Term as a trigger.
     -- cmd = 'Term',
     lazy = false,
+    -- Used to manage global/tab-local states
+    dependencies = { 'naughie/glocal-states.nvim' },
     opts = {
         -- Automatically open terminal windows on UIEnter, if no command line arguments given (i.e. argc() == 0)
         open_term_if_no_file = true,
