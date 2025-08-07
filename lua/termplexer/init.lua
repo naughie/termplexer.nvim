@@ -216,6 +216,12 @@ local function open_file_of_ibuf()
     end
 end
 
+local function send_sigint()
+    local chan_id = states.tabs.chan_id.get()
+    if not chan_id then return end
+    api.nvim_chan_send(chan_id, string.char(3))
+end
+
 local function send_cmd()
     local chan_id = states.tabs.chan_id.get()
     local ibuf = states.tabs.i.term_buf.get()
@@ -562,6 +568,7 @@ M.fn = {
     enter_term_insert = enter_term_insert,
 
     send_cmd = send_cmd,
+    send_sigint = send_sigint,
 
     move_to_output_win = move_to_owin,
 
