@@ -11,6 +11,9 @@ local config = {
             height_output = 50,
             height_input = 3,
         },
+        border = {
+            hl_group = "FloatBorder",
+        },
     },
     keymaps = {},
 }
@@ -361,6 +364,10 @@ function M.setup(opts)
         end
 
         ui.update_opts({ geom = geom  })
+    end
+
+    if opts.border then
+        ui.update_opts({ background = opts.border })
     end
 
     api.nvim_create_user_command('Term', open_term, { nargs = 0 })
