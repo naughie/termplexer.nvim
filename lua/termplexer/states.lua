@@ -8,27 +8,8 @@ M.inner_states = {
 }
 
 M.tabs = {
-    kill_term = function(tab)
-        M.tabs.chan_id.clear(tab)
-        M.tabs.i.term_buf.clear(tab)
-        M.tabs.i.term_win.clear(tab)
-        M.tabs.o.term_buf.clear(tab)
-        M.tabs.o.term_win.clear(tab)
-    end,
-
     chan_id = mkstate.tab(),
     cwd = mkstate.tab(),
-    last_active_win = mkstate.tab(),
-
-    i = {
-        term_buf = mkstate.tab(),
-        term_win = mkstate.tab(),
-    },
-
-    o = {
-        term_buf = mkstate.tab(),
-        term_win = mkstate.tab(),
-    },
 
     history = {
         list = mkstate.tab(),

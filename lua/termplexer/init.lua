@@ -1,6 +1,7 @@
 local M = {}
 
 local states = require("termplexer.states")
+local myui = require("my-ui")
 
 local config = {
     setup_opts = {
@@ -14,28 +15,16 @@ local config = {
     keymaps = {},
 }
 
+local ui = myui.declare_ui({
+    main = { close_on_companion_closed = true },
+})
+
 local api = vim.api
 local keymap = vim.keymap
 
 local augroup = {
-    i = {
-        win_closed = api.nvim_create_augroup('NaughieTermWinCloseI', { clear = true }),
-    },
-    o = {
-        win_closed = api.nvim_create_augroup('NaughieTermWinCloseO', { clear = true }),
-    },
     setup = api.nvim_create_augroup('NaughieSetup', { clear = true }),
 }
-
-local function term_buf_name_i()
-    local tab = api.nvim_get_current_tabpage()
-    return 'Terminal input ' .. tostring(tab)
-end
-
-local function term_buf_name_o()
-    local tab = api.nvim_get_current_tabpage()
-    return 'Terminal output ' .. tostring(tab)
-end
 
 local function define_keymaps_wrap(args, default_opts)
     local rhs = args[3]
@@ -44,72 +33,6 @@ local function define_keymaps_wrap(args, default_opts)
     else
         keymap.set(args[1], args[2], rhs, default_opts)
     end
-end
-
-local function create_buf_unless_exists(ns)
-    if ns.term_buf.get() then return end
-
-    local buf = api.nvim_create_buf(false, true)
-    api.nvim_buf_set_option(buf, 'bufhidden', 'hide')
-    return buf
-end
-
-local function term_height_i()
-    if config.setup_opts.dim and config.setup_opts.dim.height_input then
-        if type(config.setup_opts.dim.height_input) == 'number' then
-            return config.setup_opts.dim.height_input
-        elseif type(config.setup_opts.dim.height_input) == 'function' then
-            return config.setup_opts.dim.height_input()
-        end
-    else
-        return 3
-    end
-end
-
-local function term_height_o()
-    local height = 50
-    if config.setup_opts.dim and config.setup_opts.dim.height_output then
-        if type(config.setup_opts.dim.height_output) == 'number' then
-            height = config.setup_opts.dim.height_output
-        elseif type(config.setup_opts.dim.height_output) == 'function' then
-            height = config.setup_opts.dim.height_output()
-        end
-    end
-
-    local row = math.floor((api.nvim_get_option('lines') - height) / 2)
-    return height, row
-end
-
-local function term_width()
-    local width = 50
-    if config.setup_opts.dim and config.setup_opts.dim.width then
-        if type(config.setup_opts.dim.width) == 'number' then
-            width = config.setup_opts.dim.width
-        elseif type(config.setup_opts.dim.width) == 'function' then
-            width = config.setup_opts.dim.width()
-        end
-    end
-
-    local col = math.floor((api.nvim_get_option('columns') - width) / 2)
-    return width, col
-end
-
-local function open_float(ns, height, row)
-    if ns.term_win.get() then return end
-
-    local width, col = term_width()
-
-    local win = api.nvim_open_win(ns.term_buf.get(), true, {
-        relative = 'editor',
-        height = height,
-        width = width,
-        row = row,
-        col = col,
-        style = 'minimal',
-        border = 'rounded',
-    })
-
-    return win
 end
 
 local function get_cwd()
@@ -122,18 +45,13 @@ local function get_cwd()
 end
 
 local function open_file_into_current_win(file)
-    vim.cmd('edit! ' .. vim.fn.fnameescape(file))
+    myui.close_all()
+    myui.open_file_into_current_win(vim.fn.fnameescape(file))
 end
 
 local function open_file_into_last_active_win(file)
-    local win = states.tabs.last_active_win.get()
-    if not win or not api.nvim_win_is_valid(win) then
-        return false
-    end
-
-    api.nvim_set_current_win(win)
-    open_file_into_current_win(file)
-    return true
+    myui.close_all()
+    return myui.open_file_into_last_active_win(vim.fn.fnameescape(file))
 end
 
 local function expand_regular_filepath(path)
@@ -157,13 +75,6 @@ local function open_file_under_cursor()
 
     if full_fname then
         local ok = open_file_into_last_active_win(full_fname)
-
-        local owin = states.tabs.o.term_win.get()
-        if owin then
-            states.tabs.o.term_win.set(nil)
-            api.nvim_win_close(owin, true)
-        end
-
         if not ok then open_file_into_current_win(full_fname) end
     end
 end
@@ -180,38 +91,22 @@ local function open_file_from_selection()
 
     if full_fname then
         local ok = open_file_into_last_active_win(full_fname)
-
-        local owin = states.tabs.o.term_win.get()
-        if owin then
-            states.tabs.o.term_win.set(nil)
-            api.nvim_win_close(owin, true)
-        end
-
         if not ok then open_file_into_current_win(full_fname) end
     end
 end
 
 local function open_file_of_ibuf()
-    local ibuf = states.tabs.i.term_buf.get()
-    if not ibuf then return end
-
-    local lines = api.nvim_buf_get_lines(ibuf, 0, -1, false)
+    local lines = ui.companion.lines(0, -1, false)
+    if not lines then return end
     local lines_joined = table.concat(lines, '\n')
 
     local full_fname = expand_regular_filepath(lines_joined)
 
     if full_fname then
         states.tabs.history.append(lines)
-        api.nvim_buf_set_lines(ibuf, 0, -1, false, {})
+        ui.companion.set_lines(0, -1, false, {})
 
         local ok = open_file_into_last_active_win(full_fname)
-
-        local iwin = states.tabs.i.term_win.get()
-        if iwin then
-            states.tabs.i.term_win.set(nil)
-            api.nvim_win_close(iwin, true)
-        end
-
         if not ok then open_file_into_current_win(full_fname) end
     end
 end
@@ -224,22 +119,22 @@ end
 
 local function send_cmd()
     local chan_id = states.tabs.chan_id.get()
-    local ibuf = states.tabs.i.term_buf.get()
-    if not chan_id or not ibuf then return end
+    if not chan_id then return end
 
-    local lines = api.nvim_buf_get_lines(ibuf, 0, -1, false)
+    local lines = ui.companion.lines(0, -1, false)
+    if not lines then return end
     states.tabs.history.append(lines)
     local lines_joined = table.concat(lines, '\n') .. '\n'
 
     api.nvim_chan_send(chan_id, lines_joined)
-    api.nvim_buf_set_lines(ibuf, 0, -1, false, {})
+    ui.companion.set_lines(0, -1, false, {})
 end
 
 local function move_to_owin()
-    local owin = states.tabs.o.term_win.get()
+    local owin = ui.main.get_win()
     if owin then
         vim.cmd.stopinsert()
-        api.nvim_set_current_win(owin)
+        ui.main.focus()
     end
 end
 
@@ -254,8 +149,7 @@ local function cursor_up_or_history_prev()
     local hist = states.tabs.history.get_prev()
     if not hist then return end
 
-    local ibuf = states.tabs.i.term_buf.get()
-    api.nvim_buf_set_lines(ibuf, 0, -1, false, hist)
+    ui.companion.set_lines(0, -1, false, hist)
 end
 
 local function cursor_down_or_history_next()
@@ -268,18 +162,14 @@ local function cursor_down_or_history_next()
     end
 
     local hist = states.tabs.history.get_next()
-
-    local ibuf = states.tabs.i.term_buf.get()
     if hist then
-        api.nvim_buf_set_lines(ibuf, 0, -1, false, hist)
+        ui.companion.set_lines(0, -1, false, hist)
     else
-        api.nvim_buf_set_lines(ibuf, 0, -1, false, {})
+        ui.companion.set_lines(0, -1, false, {})
     end
 end
 
 local function setup_ibuf(buffer)
-    api.nvim_buf_set_name(buffer, term_buf_name_i())
-
     if config.keymaps.input_buffer then
         for _, args in ipairs(config.keymaps.input_buffer) do
             define_keymaps_wrap(args, { buffer = buffer, silent = true })
@@ -287,73 +177,26 @@ local function setup_ibuf(buffer)
     end
 end
 
-local function setup_iwin(win)
-    local tab = api.nvim_get_current_tabpage()
-
-    api.nvim_create_autocmd('WinClosed', {
-        group = augroup.i.win_closed,
-        pattern = tostring(win),
-        callback = function()
-            states.tabs.i.term_win.set(nil, tab)
-
-            local win = states.tabs.o.term_win.get(tab)
-            if win then
-                states.tabs.o.term_win.set(nil, tab)
-                api.nvim_win_close(win, true)
-            end
-
-        end,
-    })
+local function create_cmdline()
+    ui.companion.create_buf(setup_ibuf)
+    ui.companion.open_float()
 end
 
-local function create_cmdline()
-    local buf = create_buf_unless_exists(states.tabs.i)
-    if buf then
-        states.tabs.i.term_buf.set(buf)
-        setup_ibuf(buf)
-    end
-
-
-    local h_out, row_out = term_height_o()
-    local h_in = term_height_i()
-
-    local win = open_float(states.tabs.i, h_in, h_out + row_out + 2)
-    if win then
-        states.tabs.i.term_win.set(win)
-        setup_iwin(win)
-    end
+local function open_cmdline_and_move()
+    if not ui.companion.focus() then create_cmdline() end
 end
 
 local function open_cmdline_and_insert()
-    local iwin = states.tabs.i.term_win.get()
-    if iwin then
-        api.nvim_set_current_win(iwin)
-    else
-        create_cmdline()
-    end
+    if not ui.companion.focus() then create_cmdline() end
     vim.cmd.startinsert()
 end
 
 local function open_cmdline_and_append()
-    local iwin = states.tabs.i.term_win.get()
-    if iwin then
-        api.nvim_set_current_win(iwin)
-    else
-        create_cmdline()
-    end
+    if not ui.companion.focus() then create_cmdline() end
     vim.cmd('startinsert!')
 end
 
-local function open_cmdline_and_move()
-    if not states.tabs.i.term_win.get() then
-        create_cmdline()
-    end
-    api.nvim_set_current_win(states.tabs.i.term_win.get())
-end
-
 local function setup_obuf(buffer)
-    api.nvim_buf_set_name(buffer, term_buf_name_o())
-
     if config.keymaps.output_buffer then
         for _, args in ipairs(config.keymaps.output_buffer) do
             define_keymaps_wrap(args, { buffer = buffer, silent = true })
@@ -363,53 +206,25 @@ end
 
 local function setup_owin(win)
     api.nvim_feedkeys('G', 'n', false)
-
-    local tab = api.nvim_get_current_tabpage()
-
-    api.nvim_create_autocmd('WinClosed', {
-        group = augroup.o.win_closed,
-        pattern = tostring(win),
-        callback = function()
-            states.tabs.o.term_win.set(nil, tab)
-
-            local iwin = states.tabs.i.term_win.get(tab)
-            if iwin then
-                states.tabs.i.term_win.set(nil, tab)
-                api.nvim_win_close(iwin, true)
-            end
-        end,
-    })
 end
 
 local function launch_term()
-    local width = term_width()
-    local height = term_height_o()
+    local geom = ui.main.calc_geom()
 
     local tab = api.nvim_get_current_tabpage()
 
     local jobid = vim.fn.jobstart(vim.env.SHELL, {
         term = true,
         clear_env = false,
-        height = height,
-        width = width,
+        height = geom.height,
+        width = geom.width,
         cwd = get_cwd(),
         on_exit = function()
-            local owin = states.tabs.o.term_win.get(tab)
-            -- Invalid if killed on TabClosed
-            if owin and not api.nvim_win_is_valid(owin) then return end
+            states.tabs.chan_id.clear(tab)
 
-            states.tabs.chan_id.set(nil, tab)
-
-            if owin then
-                states.tabs.o.term_win.set(nil, tab)
-                api.nvim_win_close(owin, true)
-            end
-
-            local obuf = states.tabs.o.term_buf.get(tab)
-            if obuf then
-                states.tabs.o.term_buf.set(nil, tab)
-                api.nvim_buf_delete(obuf, { force = true })
-            end
+            ui.main.close(tab)
+            ui.companion.delete_buf(tab)
+            ui.main.delete_buf(tab)
 
             vim.cmd.stopinsert()
         end,
@@ -418,25 +233,16 @@ local function launch_term()
 end
 
 local function open_term()
-    local buf = create_buf_unless_exists(states.tabs.o)
-    if buf then
-        states.tabs.o.term_buf.set(buf)
-        setup_obuf(buf)
-    end
+    ui.main.create_buf(setup_obuf)
 
-    local h, row = term_height_o()
-    local win = open_float(states.tabs.o, h, row)
-    if win then
-        states.tabs.o.term_win.set(win)
-        setup_owin(win)
-    end
+    ui.main.open_float(setup_owin)
 
     if states.tabs.chan_id.get() then
         vim.defer_fn(open_cmdline_and_insert, 100)
         return
     end
 
-    api.nvim_buf_set_option(states.tabs.o.term_buf.get(), 'modified', false)
+    api.nvim_buf_set_option(ui.main.get_buf(), 'modified', false)
 
     local chan_id = launch_term()
     states.tabs.chan_id.set(chan_id)
@@ -446,8 +252,11 @@ end
 
 local function kill_term(tab)
     local chan_id = states.tabs.chan_id.get(tab)
-    states.tabs.kill_term(tab)
+    states.tabs.chan_id.clear(tab)
+    ui.main.close(tab)
     if chan_id then vim.fn.jobstop(chan_id) end
+    ui.companion.delete_buf(tab)
+    ui.main.delete_buf(tab)
 end
 
 local function set_autocmd_onstartup()
@@ -494,7 +303,7 @@ local function set_autocmd_onstartup()
 
     if config.setup_opts.open_term_if_no_file then
         api.nvim_create_autocmd('UIEnter', {
-            group = mygroup,
+            group = augroup.setup,
             callback = function()
                 if vim.fn.argc() == 0 then open_term() end
             end,
@@ -502,36 +311,20 @@ local function set_autocmd_onstartup()
     end
 
     api.nvim_create_autocmd('TabEnter', {
-        group = mygroup,
+        group = augroup.setup,
         callback = function()
             local cwd = states.tabs.cwd.get()
             if cwd then vim.uv.chdir(cwd) end
         end
     })
-
-    api.nvim_create_autocmd('WinLeave', {
-        group = mygroup,
-        callback = function()
-            local win = api.nvim_get_current_win()
-
-            if not win then return end
-            if win == states.tabs.i.term_win.get() then return end
-            if win == states.tabs.o.term_win.get() then return end
-
-            states.tabs.last_active_win.set(win)
-        end
-    })
 end
 
 local function inspect_states()
-    print(vim.inspect(states.inner_states))
+    print(vim.inspect({ states = states.inner_states, ui = ui }))
 end
 
 local function enter_term_insert()
-    local owin = states.tabs.o.term_win.get()
-    if not owin then return end
-    api.nvim_set_current_win(owin)
-    vim.cmd.startinsert()
+    if ui.main.focus() then vim.cmd.startinsert() end
 end
 
 function M.define_keymaps(keymaps)
@@ -554,6 +347,22 @@ end
 function M.setup(opts)
     config.setup_opts = opts
 
+    if opts.dim then
+        local geom = { main = {}, companion = {} }
+        if opts.dim.width then
+            geom.main.width = opts.dim.width
+            geom.companion.width = opts.dim.width
+        end
+        if opts.dim.height_output then
+            geom.main.height = opts.dim.height_output
+        end
+        if opts.dim.height_input then
+            geom.companion.height = opts.dim.height_input
+        end
+
+        ui.update_opts({ geom = geom  })
+    end
+
     api.nvim_create_user_command('Term', open_term, { nargs = 0 })
     api.nvim_create_user_command('TermInspect', inspect_states, { nargs = 0 })
     api.nvim_create_user_command('Enterm', enter_term_insert, { nargs = 0 })
@@ -566,6 +375,11 @@ M.fn = {
     open_or_create_term = open_term,
     kill_term = kill_term,
     enter_term_insert = enter_term_insert,
+
+    close_win = function()
+        ui.main.close()
+        myui.focus_on_last_active_ui()
+    end,
 
     send_cmd = send_cmd,
     send_sigint = send_sigint,
