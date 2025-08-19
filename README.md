@@ -29,71 +29,85 @@ Example configs:
 
 ```lua
 {
-    'naughie/termplexer.nvim',
-    -- Loading the plugin is cheap, unless open_term_if_no_file == true
-    -- It can be lazy - use :Term as a trigger.
-    -- cmd = 'Term',
-    lazy = false,
-    -- Used to manage global/tab-local states
-    dependencies = { 'naughie/glocal-states.nvim' },
-    opts = {
-        -- Automatically open terminal windows on UIEnter, if no command line arguments given (i.e. argc() == 0)
-        open_term_if_no_file = true,
-        -- Size of terminal windows
-        dim = {
-            width = function() return math.floor(vim.api.nvim_get_option('columns') * 0.5) end,
-            height_output = function() return math.floor(vim.api.nvim_get_option('lines') * 0.8) end,
-            height_input = 3,
-        },
+    -- Dependencies
+    { "naughie/glocal-states.nvim", lazy = true },
+    { "naughie/my-ui.nvim", lazy = true },
 
-        -- { {mode}, {lhs}, {rhs} } (see :h vim.keymap.set())
-        -- {opts} are not supported yet
-        --
-        -- We accept keys of require('termplexer').fn as {rhs}
-        keymaps = {
-            global = {
-                -- Same as :Term below
-                { 'n', '<Space>t', 'open_or_create_term' },
-                -- Spawn a new tab
-                { { 'n', 'i' }, '<C-t>', function() vim.cmd('stopi | tabnew | vsplit | vsplit | Term') end },
-                -- Move to the next/previous tab
-                { { 'n', 'i' }, '<C-Tab>', function() vim.cmd('stopi | tabn') end },
-                { { 'n', 'i' }, '<C-S-Tab>', function() vim.cmd('stopi | tabp') end },
+    {
+        'naughie/termplexer.nvim',
+        -- Loading the plugin is cheap, unless open_term_if_no_file == true
+        -- It can be lazy - use :Term as a trigger.
+        -- cmd = 'Term',
+        lazy = false,
+        opts = {
+            -- Automatically open terminal windows on UIEnter, if no command line arguments given (i.e. argc() == 0)
+            open_term_if_no_file = true,
+            -- Size of terminal windows
+            dim = {
+                width = function() return math.floor(vim.api.nvim_get_option('columns') * 0.5) end,
+                height_output = function() return math.floor(vim.api.nvim_get_option('lines') * 0.8) end,
+                height_input = 3,
+            },
+            border = {
+                -- Highlight group for the border of floating windows
+                hl_group = "FloatBorder",
             },
 
-            input_buffer = {
-                -- Send the input buffer to terminal's stdin, and clear the buffer
-                { {  'n', 'i' }, '<CR>', 'send_cmd' },
-                { 'n', 'q', ':q<CR>' },
-                { { 'n', 'i' }, '<C-k>', 'move_to_output_win' },
-                -- If the content of the input buffer is a filename, open it
-                { 'n', '<C-o>', 'open_file_from_input_buffer' },
+            -- { {mode}, {lhs}, {rhs} } (see :h vim.keymap.set())
+            -- {opts} are not supported yet
+            --
+            -- We accept keys of require('termplexer').fn as {rhs}
+            keymaps = {
+                global = {
+                    -- Same as :Term below
+                    { 'n', '<Space>t', 'open_or_create_term' },
+                    -- Spawn a new tab
+                    { { 'n', 'i' }, '<C-t>', function() vim.cmd('stopi | tabnew | vsplit | vsplit | Term') end },
+                    -- Move to the next/previous tab
+                    { { 'n', 'i' }, '<C-Tab>', function() vim.cmd('stopi | tabn') end },
+                    { { 'n', 'i' }, '<C-S-Tab>', function() vim.cmd('stopi | tabp') end },
+                },
 
-                -- Move up/down the command history
-                { 'n', 'k', 'cursor_up_or_history_prev' },
-                { 'n', 'j', 'cursor_down_or_history_next' },
-            },
+                input_buffer = {
+                    -- Send the input buffer to terminal's stdin, and clear the buffer
+                    { {  'n', 'i' }, '<CR>', 'send_cmd' },
+                    { 'n', 'q', 'close_win' },
+                    { { 'n', 'i' }, '<C-k>', 'move_to_output_win' },
+                    -- If the content of the input buffer is a filename, open it
+                    { 'n', '<C-o>', 'open_file_from_input_buffer' },
 
-            output_buffer = {
-                { 'n', 'q', ':q<CR>' },
-                -- Open an input window if not exists, and enter the insert mode (like i)
-                { 'n', 'i', 'open_cmdline_and_insert' },
-                { 'n', 'I', 'open_cmdline_and_insert' },
-                -- Same as open_cmdline_and_insert, but like a
-                { 'n', 'a', 'open_cmdline_and_append' },
-                { 'n', 'A', 'open_cmdline_and_append' },
-                -- If <cWORD> is a filename, open it
-                { 'n', 'o', 'open_file_under_cursor' },
-                { 'n', 'O', 'open_file_under_cursor' },
-                -- If '<,'> is a filename, open it
-                { 'v', 'o', ':<C-u>lua require("termplexer").fn.open_file_from_selection()<CR>' },
-                { 'v', 'O', ':<C-u>lua require("termplexer").fn.open_file_from_selection()<CR>' },
-                { 'v', '<CR>', ':<C-u>lua require("termplexer").fn.open_file_from_selection()<CR>' },
-                -- Same as open_cmdline_and_insert, but not entering the insert mode
-                { 'n', '<C-j>', 'open_cmdline_and_move' },
+                    -- Move up/down the command history
+                    { 'n', 'k', 'cursor_up_or_history_prev' },
+                    { 'n', 'j', 'cursor_down_or_history_next' },
 
-                -- Exit the terminal mode
-                { 't', '<C-q>', '<C-\\><C-n>' },
+                    -- Send the signal to the shell
+                    { { 'n', 'i' }, '<C-c>', 'send_sigint' },
+                },
+
+                output_buffer = {
+                    { 'n', 'q', ':q<CR>' },
+                    -- Open an input window if not exists, and enter the insert mode (like i)
+                    { 'n', 'i', 'open_cmdline_and_insert' },
+                    { 'n', 'I', 'open_cmdline_and_insert' },
+                    -- Same as open_cmdline_and_insert, but like a
+                    { 'n', 'a', 'open_cmdline_and_append' },
+                    { 'n', 'A', 'open_cmdline_and_append' },
+                    -- If <cWORD> is a filename, open it
+                    { 'n', 'o', 'open_file_under_cursor' },
+                    { 'n', 'O', 'open_file_under_cursor' },
+                    -- If '<,'> is a filename, open it
+                    { 'v', 'o', ':<C-u>lua require("termplexer").fn.open_file_from_selection()<CR>' },
+                    { 'v', 'O', ':<C-u>lua require("termplexer").fn.open_file_from_selection()<CR>' },
+                    { 'v', '<CR>', ':<C-u>lua require("termplexer").fn.open_file_from_selection()<CR>' },
+                    -- Same as open_cmdline_and_insert, but not entering the insert mode
+                    { 'n', '<C-j>', 'open_cmdline_and_move' },
+
+                    -- Send the signal to the shell
+                    { 'n', '<C-c>', 'send_sigint' },
+
+                    -- Exit the terminal mode
+                    { 't', '<C-q>', '<C-\\><C-n>' },
+                },
             },
         },
     },
@@ -106,6 +120,8 @@ Example configs:
 This module provides the following commands:
 
 - `:Term` to 1) spawn a new terminal process if it does not exist, 2) open a new floating window attached to it if not exists, 3) open a new input window if not exists, 4) enter the input window
+    - Equivalent to `fn.open_or_create_term()`
 - `:TermInspect` to debug internal states
 - `:Enterm` to enter the output window, in case that the terminal needs the 'raw mode' access, such as pagers (`less`, `more`, ...), editors (`vim`, `emacs`, ...) or rich TUI tools
     - Exit the output window by sending `<C-\><C-n>` manually (`:h terminal-input`)
+    - Equivalent to `fn.enter_term_insert()`
