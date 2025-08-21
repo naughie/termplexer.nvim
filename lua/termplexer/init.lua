@@ -384,8 +384,8 @@ M.fn = {
     enter_term_insert = enter_term_insert,
 
     close_win = function()
+        if not myui.focus_on_last_active_ui() then myui.focus_on_last_active_win() end
         ui.main.close()
-        myui.focus_on_last_active_ui()
     end,
 
     send_cmd = send_cmd,
