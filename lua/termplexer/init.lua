@@ -1,268 +1,106 @@
 local M = {}
 
 local states = require("termplexer.states")
-local myui = require("my-ui")
+local proc = require("termplexer.process")
+local actions = require("termplexer.actions")
+local ui = require("termplexer.ui")
 
-local config = {
-    setup_opts = {
-        open_term_if_no_file = true,
-        dim = {
-            width = 50,
-            height_output = 50,
-            height_input = 3,
-        },
-        border = {
-            hl_group = "FloatBorder",
-        },
+local default_opts = {
+    open_term_if_no_file = true,
+
+    dim = {
+        width = 50,
+        height_output = 50,
+        height_input = 3,
     },
-    keymaps = {},
+
+    border = {
+        hl_group = "FloatBorder",
+    },
+
+    keymaps = {
+        global = {},
+        input_buffer = {},
+        output_buffer = {},
+    },
 }
 
-local ui = myui.declare_ui({
-    main = { close_on_companion_closed = true },
-})
-
-local api = vim.api
-local keymap = vim.keymap
-
-local augroup = {
-    setup = api.nvim_create_augroup('NaughieSetup', { clear = true }),
+local config = {
+    keymaps = {
+        input = {},
+        output = {},
+    },
 }
 
 local function define_keymaps_wrap(args, default_opts)
+    local opts = vim.tbl_deep_extend("force", vim.deepcopy(default_opts), args[4] or {})
+
     local rhs = args[3]
     if type(rhs) == 'string' and M.fn[rhs] then
-        keymap.set(args[1], args[2], M.fn[rhs], default_opts)
+        vim.keymap.set(args[1], args[2], M.fn[rhs], opts)
     else
-        keymap.set(args[1], args[2], rhs, default_opts)
+        vim.keymap.set(args[1], args[2], rhs, opts)
     end
 end
 
-local function get_cwd()
-    local state = states.tabs.cwd.get()
-    if state then
-        return state
-    else
-        return vim.uv.cwd()
-    end
-end
-
-local function open_file_into_current_win(file)
-    myui.close_all()
-    myui.open_file_into_current_win(vim.fn.fnameescape(file))
-end
-
-local function open_file_into_last_active_win(file)
-    myui.close_all()
-    return myui.open_file_into_last_active_win(vim.fn.fnameescape(file))
-end
-
-local function expand_regular_filepath(path)
-    local maybe_fname = path
-
-    local first_char = path:sub(1, 1)
-    if first_char ~= '/' and first_char ~= '~'  then
-        maybe_fname = get_cwd() .. '/' .. path
-    end
-
-    -- stat(2) follows symlinks, lstat(2) does not
-    local stat = vim.uv.fs_stat(maybe_fname)
-    if stat and stat.type == 'file' then
-        return vim.uv.fs_realpath(maybe_fname)
-    end
-end
-
-local function open_file_under_cursor()
-    local word = vim.fn.expand('<cWORD>')
-    local full_fname = expand_regular_filepath(word)
-
-    if full_fname then
-        local ok = open_file_into_last_active_win(full_fname)
-        if not ok then open_file_into_current_win(full_fname) end
-    end
-end
-
-local function open_file_from_selection()
-    local start_pos = vim.fn.getpos("'<")
-    local end_pos = vim.fn.getpos("'>")
-
-    -- Assume start_pos[2] == end_pos[2]
-    local line = vim.api.nvim_buf_get_lines(0, start_pos[2] - 1, start_pos[2], false)
-    local selection = string.sub(line[1], start_pos[3], end_pos[3])
-
-    local full_fname = expand_regular_filepath(selection)
-
-    if full_fname then
-        local ok = open_file_into_last_active_win(full_fname)
-        if not ok then open_file_into_current_win(full_fname) end
-    end
-end
-
-local function open_file_of_ibuf()
-    local lines = ui.companion.lines(0, -1, false)
-    if not lines then return end
-    local lines_joined = table.concat(lines, '\n')
-
-    local full_fname = expand_regular_filepath(lines_joined)
-
-    if full_fname then
-        states.tabs.history.append(lines)
-        ui.companion.set_lines(0, -1, false, {})
-
-        local ok = open_file_into_last_active_win(full_fname)
-        if not ok then open_file_into_current_win(full_fname) end
-    end
-end
-
-local function send_sigint()
-    local chan_id = states.tabs.chan_id.get()
-    if not chan_id then return end
-    api.nvim_chan_send(chan_id, string.char(3))
-end
-
-local function send_cmd()
-    local chan_id = states.tabs.chan_id.get()
-    if not chan_id then return end
-
-    local lines = ui.companion.lines(0, -1, false)
-    if not lines then return end
-    states.tabs.history.append(lines)
-    local lines_joined = table.concat(lines, '\n') .. '\n'
-
-    api.nvim_chan_send(chan_id, lines_joined)
-    ui.companion.set_lines(0, -1, false, {})
-end
-
-local function move_to_owin()
-    local owin = ui.main.get_win()
-    if owin then
-        vim.cmd.stopinsert()
-        ui.main.focus()
-    end
-end
-
-local function cursor_up_or_history_prev()
-    local linenr = vim.fn.line('.')
-
-    if linenr ~= 1 then
-        api.nvim_feedkeys('k', 'n', true)
-        return
-    end
-
-    local hist = states.tabs.history.get_prev()
-    if not hist then return end
-
-    ui.companion.set_lines(0, -1, false, hist)
-end
-
-local function cursor_down_or_history_next()
-    local linenr = vim.fn.line('.')
-    local lastnr = vim.fn.line('$')
-
-    if linenr ~= lastnr then
-        api.nvim_feedkeys('j', 'n', true)
-        return
-    end
-
-    local hist = states.tabs.history.get_next()
-    if hist then
-        ui.companion.set_lines(0, -1, false, hist)
-    else
-        ui.companion.set_lines(0, -1, false, {})
-    end
-end
-
-local function setup_ibuf(buffer)
-    if config.keymaps.input_buffer then
-        for _, args in ipairs(config.keymaps.input_buffer) do
-            define_keymaps_wrap(args, { buffer = buffer, silent = true })
+local set_keymaps = {
+    input = function(buf)
+        for _, args in ipairs(config.keymaps.input) do
+            define_keymaps_wrap(args, { buffer = buf, silent = true })
         end
-    end
-end
+    end,
+
+    output = function(buf)
+        for _, args in ipairs(config.keymaps.output) do
+            define_keymaps_wrap(args, { buffer = buf, silent = true })
+        end
+    end,
+}
+
+local api = vim.api
+
+local augroup = {
+    setup = api.nvim_create_augroup('NaughieTermpSetup', { clear = true }),
+}
 
 local function create_cmdline()
-    ui.companion.create_buf(setup_ibuf)
-    ui.companion.open_float()
-end
-
-local function open_cmdline_and_move()
-    if not ui.companion.focus() then create_cmdline() end
+    if ui.i.focus() then return end
+    ui.i.open(set_keymaps.input)
 end
 
 local function open_cmdline_and_insert()
-    if not ui.companion.focus() then create_cmdline() end
+    create_cmdline()
     vim.cmd.startinsert()
 end
 
-local function open_cmdline_and_append()
-    if not ui.companion.focus() then create_cmdline() end
-    vim.cmd('startinsert!')
-end
-
-local function setup_obuf(buffer)
-    if config.keymaps.output_buffer then
-        for _, args in ipairs(config.keymaps.output_buffer) do
-            define_keymaps_wrap(args, { buffer = buffer, silent = true })
-        end
-    end
-end
-
-local function setup_owin(win)
-    api.nvim_feedkeys('G', 'n', false)
-end
-
-local function launch_term()
-    local geom = ui.main.calc_geom()
-
-    local tab = api.nvim_get_current_tabpage()
-
-    local jobid = vim.fn.jobstart(vim.env.SHELL, {
-        term = true,
-        clear_env = false,
-        height = geom.height,
-        width = geom.width,
-        cwd = get_cwd(),
-        on_exit = function()
-            states.tabs.chan_id.clear(tab)
-
-            ui.main.close(tab)
-            ui.companion.delete_buf(tab)
-            ui.main.delete_buf(tab)
-
-            vim.cmd.stopinsert()
-        end,
-    })
-    return jobid
-end
-
 local function open_term()
-    ui.main.create_buf(setup_obuf)
+    ui.o.open(set_keymaps.output)
 
-    ui.main.open_float(setup_owin)
-
-    if states.tabs.chan_id.get() then
+    if proc.already_running() then
         vim.defer_fn(open_cmdline_and_insert, 100)
         return
     end
 
-    api.nvim_buf_set_option(ui.main.get_buf(), 'modified', false)
+    local geom = ui.o.geom()
+    proc.spawn_shell(geom, function(tab)
+        ui.o.close(tab)
+        ui.i.delete_buf(tab)
+        ui.o.delete_buf(tab)
 
-    local chan_id = launch_term()
-    states.tabs.chan_id.set(chan_id)
+        vim.cmd.stopinsert()
+    end)
 
     vim.defer_fn(open_cmdline_and_insert, 100)
 end
 
 local function kill_term(tab)
-    local chan_id = states.tabs.chan_id.get(tab)
-    states.tabs.chan_id.clear(tab)
-    ui.main.close(tab)
-    if chan_id then vim.fn.jobstop(chan_id) end
-    ui.companion.delete_buf(tab)
-    ui.main.delete_buf(tab)
+    ui.o.close(tab)
+    proc.terminate(tab)
+    ui.i.delete_buf(tab)
+    ui.o.delete_buf(tab)
 end
 
-local function set_autocmd_onstartup()
+local function set_autocmd_onstartup(opts)
     api.nvim_create_autocmd('TabClosed', {
         group = augroup.setup,
         callback = function(ev)
@@ -279,32 +117,12 @@ local function set_autocmd_onstartup()
                     return
                 end
 
-                states.tabs.cwd.set(dir)
-                states.global.cwd.set(dir)
-                vim.uv.chdir(dir)
+                api.nvim_set_current_dir(dir)
             end
         end,
     })
 
-    api.nvim_create_autocmd('TabNew', {
-        group = augroup.setup,
-        callback = function()
-            local tmp_cwd = states.global.cwd.get()
-            if not tmp_cwd then return end
-
-            states.tabs.cwd.set(tmp_cwd)
-        end,
-    })
-
-    api.nvim_create_autocmd('VimEnter', {
-        group = augroup.setup,
-        callback = function()
-            local dir = vim.uv.cwd()
-            if dir then states.tabs.cwd.set(dir) end
-        end,
-    })
-
-    if config.setup_opts.open_term_if_no_file then
+    if opts.open_term_if_no_file then
         api.nvim_create_autocmd('UIEnter', {
             group = augroup.setup,
             callback = function()
@@ -312,14 +130,6 @@ local function set_autocmd_onstartup()
             end,
         })
     end
-
-    api.nvim_create_autocmd('TabEnter', {
-        group = augroup.setup,
-        callback = function()
-            local cwd = states.tabs.cwd.get()
-            if cwd then vim.uv.chdir(cwd) end
-        end
-    })
 end
 
 local function inspect_states()
@@ -327,7 +137,7 @@ local function inspect_states()
 end
 
 local function enter_term_insert()
-    if ui.main.focus() then vim.cmd.startinsert() end
+    if ui.o.focus() then vim.cmd.startinsert() end
 end
 
 function M.define_keymaps(keymaps)
@@ -340,16 +150,18 @@ function M.define_keymaps(keymaps)
     end
 
     if keymaps.input_buffer then
-        config.keymaps.input_buffer = keymaps.input_buffer
+        for _, keymap in ipairs(keymaps.input_buffer) do
+            table.insert(config.keymaps.input, keymap)
+        end
     end
     if keymaps.output_buffer then
-        config.keymaps.output_buffer = keymaps.output_buffer
+        for _, keymap in ipairs(keymaps.output_buffer) do
+            table.insert(config.keymaps.output, keymap)
+        end
     end
 end
 
 function M.setup(opts)
-    config.setup_opts = opts
-
     if opts.dim then
         local geom = { main = {}, companion = {} }
         if opts.dim.width then
@@ -373,7 +185,7 @@ function M.setup(opts)
     api.nvim_create_user_command('Term', open_term, { nargs = 0 })
     api.nvim_create_user_command('TermInspect', inspect_states, { nargs = 0 })
     api.nvim_create_user_command('Enterm', enter_term_insert, { nargs = 0 })
-    set_autocmd_onstartup()
+    set_autocmd_onstartup(opts)
 
     M.define_keymaps(opts.keymaps)
 end
@@ -383,26 +195,42 @@ M.fn = {
     kill_term = kill_term,
     enter_term_insert = enter_term_insert,
 
-    close_win = function()
-        if not myui.focus_on_last_active_ui() then myui.focus_on_last_active_win() end
-        ui.main.close()
+    close_win = ui.gracefully_close,
+
+    send_cmd = function()
+        local lines = ui.i.lines()
+        if not lines or #lines == 0 then return end
+
+        local any_nonempty = true
+        for _, line in ipairs(lines) do
+            if not string.find(line, "%S") then any_nonempty = false end
+        end
+        if not any_nonempty then return end
+
+        states.tabs.history.append(lines)
+        proc.send_cmd(lines)
+        ui.i.replace({})
+    end,
+    send_sigint = proc.send_sigint,
+
+    move_to_output_win = function()
+        vim.cmd.stopinsert()
+        ui.o.focus()
     end,
 
-    send_cmd = send_cmd,
-    send_sigint = send_sigint,
+    open_file_from_input_buffer = actions.open_file_from_input_buffer,
+    open_file_under_cursor = actions.open_file_under_cursor,
+    open_file_from_selection = actions.open_file_from_selection,
 
-    move_to_output_win = move_to_owin,
-
-    open_file_from_input_buffer = open_file_of_ibuf,
-    open_file_under_cursor = open_file_under_cursor,
-    open_file_from_selection = open_file_from_selection,
-
-    cursor_up_or_history_prev = cursor_up_or_history_prev,
-    cursor_down_or_history_next = cursor_down_or_history_next,
+    cursor_up_or_history_prev = actions.cursor_up_or_history_prev,
+    cursor_down_or_history_next = actions.cursor_down_or_history_next,
 
     open_cmdline_and_insert = open_cmdline_and_insert,
-    open_cmdline_and_append = open_cmdline_and_append,
-    open_cmdline_and_move = open_cmdline_and_move,
+    open_cmdline_and_append = function()
+        create_cmdline()
+        vim.cmd('startinsert!')
+    end,
+    open_cmdline_and_move = create_cmdline,
 }
 
 return M

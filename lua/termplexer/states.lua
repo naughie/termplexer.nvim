@@ -4,12 +4,10 @@ local mkstate = require("glocal-states")
 
 M.inner_states = {
     tabs = {},
-    global = {},
 }
 
 M.tabs = {
     chan_id = mkstate.tab(),
-    cwd = mkstate.tab(),
 
     history = {
         list = mkstate.tab(),
@@ -57,10 +55,6 @@ M.tabs = {
             return list[pos + 1]
         end,
     },
-}
-
-M.global = {
-    cwd = mkstate.global(),
 }
 
 return M
