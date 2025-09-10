@@ -82,7 +82,7 @@ function M.cursor_up_or_history_prev()
     local linenr = vim.fn.line('.')
 
     if linenr ~= 1 then
-        api.nvim_feedkeys('k', 'n', true)
+        vim.api.nvim_feedkeys('k', 'n', true)
         return
     end
 
@@ -97,7 +97,7 @@ function M.cursor_down_or_history_next()
     local lastnr = vim.fn.line('$')
 
     if linenr ~= lastnr then
-        api.nvim_feedkeys('j', 'n', true)
+        vim.api.nvim_feedkeys('j', 'n', true)
         return
     end
 
