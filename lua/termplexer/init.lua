@@ -110,6 +110,7 @@ local function set_autocmd_onstartup(opts)
 
     api.nvim_create_autocmd('TermRequest', {
         group = augroup.setup,
+        nested = true,
         callback = function(ev)
             if string.sub(ev.data.sequence, 1, 4) == '\x1b]7;' then
                 local dir = string.gsub(ev.data.sequence, '\x1b]7;file://[^/]*', '')
