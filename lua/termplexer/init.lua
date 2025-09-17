@@ -202,11 +202,11 @@ M.fn = {
         local lines = ui.i.lines()
         if not lines or #lines == 0 then return end
 
-        local any_nonempty = true
+        local all_empty = true
         for _, line in ipairs(lines) do
-            if not string.find(line, "%S") then any_nonempty = false end
+            if string.find(line, "%S") then all_empty = false end
         end
-        if not any_nonempty then return end
+        if all_empty then return end
 
         states.tabs.history.append(lines)
         proc.send_cmd(lines)

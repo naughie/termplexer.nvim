@@ -62,7 +62,7 @@ M.i = {
 
     win_api = function(api_fn)
         local win = ui.companion.get_win()
-        if win then api_fn(win) end
+        if win then return api_fn(win) end
     end,
 }
 
