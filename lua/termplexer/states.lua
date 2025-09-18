@@ -13,6 +13,8 @@ M.tabs = {
         list = mkstate.tab(),
         pos = mkstate.tab(),
 
+        current = mkstate.tab(),
+
         append = function(value, tab)
             local list = M.tabs.history.list.get(tab)
 
@@ -23,6 +25,8 @@ M.tabs = {
                 M.tabs.history.list.set({ value }, tab)
                 M.tabs.history.pos.set(2, tab)
             end
+
+            M.tabs.history.current.clear(tab)
         end,
 
         get_prev = function(tab)
@@ -37,7 +41,14 @@ M.tabs = {
             end
 
             M.tabs.history.pos.set(pos - 1, tab)
-            return list[pos - 1]
+            if pos == #list + 1 then
+                local update_current = function(lines)
+                    M.tabs.history.current.set(lines or {}, tab)
+                end
+                return list[pos - 1], update_current
+            else
+                return list[pos - 1]
+            end
         end,
 
         get_next = function(tab)
@@ -47,12 +58,14 @@ M.tabs = {
 
             if #list == 0 then return nil end
 
-            if pos == #list or pos == #list + 1 then
-                return nil
-            end
+            if pos == #list + 1 then return nil end
 
             M.tabs.history.pos.set(pos + 1, tab)
-            return list[pos + 1]
+            if pos == #list then
+                return M.tabs.history.current.get(tab)
+            else
+                return list[pos + 1]
+            end
         end,
     },
 }

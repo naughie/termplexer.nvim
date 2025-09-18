@@ -86,9 +86,10 @@ function M.cursor_up_or_history_prev()
         return
     end
 
-    local hist = states.tabs.history.get_prev()
+    local hist, update_current = states.tabs.history.get_prev()
     if not hist then return end
 
+    if update_current then update_current(ui.i.lines()) end
     ui.i.replace(hist)
 end
 
@@ -102,11 +103,8 @@ function M.cursor_down_or_history_next()
     end
 
     local hist = states.tabs.history.get_next()
-    if hist then
-        ui.i.replace(hist)
-    else
-        ui.i.replace({})
-    end
+    if not hist then return end
+    ui.i.replace(hist)
 end
 
 return M
